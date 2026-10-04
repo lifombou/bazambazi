@@ -254,6 +254,321 @@
   <span id="sessionInfo"></span>
   <button id="logoutBtn">خروج</button>
 </div>
+
+<!-- ============ Appwrite Gate — امنیت سمت سرور (fetch) ============ -->
+<script>
+(function(){
+  'use strict';
+
+  /* ============ اطلاعات پروژه Appwrite ============ */
+  const API_BASE   = 'https://fra.cloud.appwrite.io/v1';
+  const PROJECT_ID = '6ac18432000eb4377dad';
+  const DB_ID      = '6ac188ac002436bf9010';
+  const TABLE_ID   = '6ac1895e001bfb64bdfb';
+
+  const GUEST_HOURS = 0.5;
+  const GUEST_ONCE_PER_DEVICE = true;
+  const DEVICE_LOCK = true;
+  const USER_SESSION_HOURS = null;
+
+  function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+  function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+  function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
+
+  async function getDeviceFingerprint() {
+    const parts = [];
+    parts.push(navigator.userAgent || '');
+    parts.push(navigator.language || '');
+    parts.push(navigator.platform || '');
+    parts.push(String(navigator.hardwareConcurrency || 0));
+    parts.push(String(navigator.maxTouchPoints || 0));
+    parts.push(String(screen.width) + 'x' + String(screen.height));
+    parts.push(String(screen.colorDepth || 0));
+    parts.push(String(window.devicePixelRatio || 1));
+    try { parts.push(Intl.DateTimeFormat().resolvedOptions().timeZone || ''); } catch(e){}
+    parts.push(String(new Date().getTimezoneOffset()));
+    try {
+      const c = document.createElement('canvas');
+      c.width = 200; c.height = 40;
+      const cx = c.getContext('2d');
+      cx.textBaseline = 'top'; cx.font = '14px Arial';
+      cx.fillStyle = '#f60'; cx.fillRect(10, 5, 80, 25);
+      cx.fillStyle = '#069'; cx.fillText('KalameGate', 15, 10);
+      cx.fillStyle = 'rgba(102,204,0,0.7)'; cx.fillText('Fingerprint', 20, 20);
+      parts.push(c.toDataURL());
+    } catch(e){ parts.push('canvas_err'); }
+    try {
+      const c2 = document.createElement('canvas');
+      const gl = c2.getContext('webgl') || c2.getContext('experimental-webgl');
+      if (gl) {
+        const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+        parts.push(dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))
+                       : String(gl.getParameter(gl.RENDERER)));
+      }
+    } catch(e){}
+    let str = parts.join('|||');
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    h = Math.abs(h).toString(36);
+    let h2 = 0;
+    const ua = navigator.userAgent || '';
+    for (let i = 0; i < ua.length; i++) h2 = (h2 * 31 + ua.charCodeAt(i)) | 0;
+    h2 = Math.abs(h2).toString(36);
+    return 'fp_' + h + '_' + h2;
+  }
+
+  function apiHeaders() {
+    return {
+      'X-Appwrite-Project': PROJECT_ID,
+      'X-Appwrite-Response-Format': '1.6.0',
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+  }
+
+  async function apiGetRow(rowId) {
+    const url = API_BASE + '/databases/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
+    const res = await fetch(url, { headers: apiHeaders() });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const t = await res.text();
+      console.error('[Gate] GET error:', res.status, t);
+      throw new Error('API ' + res.status);
+    }
+    return await res.json();
+  }
+
+  async function apiUpdateRow(rowId, fields) {
+    const url = API_BASE + '/databases/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: apiHeaders(),
+      body: JSON.stringify({ data: fields })
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      console.error('[Gate] PATCH error:', res.status, t);
+      throw new Error('API ' + res.status);
+    }
+    return await res.json();
+  }
+
+  async function apiCreateRow(rowId, fields) {
+    const url = API_BASE + '/databases/' + DB_ID + '/tables/' + TABLE_ID + '/rows';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({ rowId: rowId, data: fields })
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      console.error('[Gate] POST error:', res.status, t);
+      throw new Error('API ' + res.status);
+    }
+    return await res.json();
+  }
+
+  function loadSession(){
+    try { return JSON.parse(lsGet('kalame_session_v2') || 'null'); } catch(e){ return null; }
+  }
+  function saveSession(s){ lsSet('kalame_session_v2', JSON.stringify(s)); }
+  function clearSession(){ lsDel('kalame_session_v2'); }
+
+  function isExpired(s){
+    if(!s) return true;
+    if(s.expiresAt == null) return false;
+    return Date.now() >= s.expiresAt;
+  }
+
+  let barTimer = null;
+  function lock(){
+    document.body.classList.add('locked');
+    const sb = document.getElementById('sessionBar');
+    if (sb) sb.classList.add('hidden');
+  }
+  function unlock(){
+    document.body.classList.remove('locked');
+    startSessionBar();
+  }
+
+  function startSessionBar(){
+    const bar  = document.getElementById('sessionBar');
+    const info = document.getElementById('sessionInfo');
+    if (!bar || !info) return;
+    bar.classList.remove('hidden');
+
+    function tick(){
+      const s = loadSession();
+      if(!s || isExpired(s)){ clearSession(); lock(); return; }
+      let txt = '<b>' + s.name + '</b>';
+      if(s.type === 'guest' && s.expiresAt){
+        const left = s.expiresAt - Date.now();
+        if(left <= 0){ clearSession(); lock(); return; }
+        const m = Math.floor(left / 60000);
+        const sec = Math.floor((left % 60000) / 1000);
+        txt += ' — مهمان (' + m + ' دقیقه و ' + sec + ' ثانیه باقی‌مانده)';
+      } else {
+        txt += ' — دسترسی نامحدود';
+      }
+      info.innerHTML = txt;
+    }
+    tick();
+    if(barTimer) clearInterval(barTimer);
+    barTimer = setInterval(tick, 1000);
+  }
+
+  async function loginWithPassword(pass){
+    const msg = document.getElementById('gateMsg');
+    const loginBtn = document.getElementById('gateLogin');
+    msg.classList.remove('ok');
+    msg.textContent = '';
+
+    if(!pass){ msg.textContent = 'رمز را وارد کنید.'; return; }
+
+    loginBtn.disabled = true;
+    msg.textContent = 'در حال بررسی...';
+
+    try {
+      let row;
+      try {
+        row = await apiGetRow(pass);
+      } catch(e) {
+        msg.textContent = 'رمز عبور اشتباه است.';
+        loginBtn.disabled = false;
+        return;
+      }
+
+      if (!row) {
+        msg.textContent = 'رمز عبور اشتباه است.';
+        loginBtn.disabled = false;
+        return;
+      }
+
+      const fp = await getDeviceFingerprint();
+      const storedDevice = (row.deviceId || '').trim();
+
+      if (DEVICE_LOCK && storedDevice && storedDevice !== fp) {
+        msg.textContent = 'این رمز قبلاً روی دستگاه دیگری استفاده شده است.';
+        loginBtn.disabled = false;
+        return;
+      }
+
+      if (DEVICE_LOCK && !storedDevice) {
+        try {
+          await apiUpdateRow(pass, { deviceId: fp });
+        } catch(e) {
+          // اگه Update خاموش باشه، از ورود جلوگیری نمی‌کنیم
+          console.warn('[Gate] Could not bind device:', e);
+        }
+      }
+
+      const session = {
+        name: 'کاربر',
+        type: 'user',
+        startedAt: Date.now(),
+        expiresAt: (USER_SESSION_HOURS == null)
+          ? null
+          : (Date.now() + USER_SESSION_HOURS * 3600000)
+      };
+      saveSession(session);
+      msg.classList.add('ok');
+      msg.textContent = 'خوش آمدید...';
+      setTimeout(unlock, 250);
+
+    } catch (err) {
+      console.error('[Gate] Login error:', err);
+      msg.textContent = 'خطای شبکه. دوباره تلاش کن.';
+      loginBtn.disabled = false;
+    }
+  }
+
+  async function loginAsGuest(){
+    const msg = document.getElementById('gateGuestMsg');
+    msg.textContent = '';
+
+    try {
+      const fp = await getDeviceFingerprint();
+      const guestKey = 'guest_' + fp;
+
+      if (GUEST_ONCE_PER_DEVICE) {
+        let existing = null;
+        try {
+          existing = await apiGetRow(guestKey);
+        } catch(e) { /* 404 = استفاده نشده */ }
+        if (existing) {
+          msg.textContent = 'ورود مهمان قبلاً در این دستگاه استفاده شده است.';
+          return;
+        }
+        try {
+          await apiCreateRow(guestKey, { deviceId: fp });
+        } catch(e) {
+          console.warn('[Gate] Could not create guest marker:', e);
+        }
+      }
+
+      const now = Date.now();
+      const session = {
+        name: 'مهمان',
+        type: 'guest',
+        startedAt: now,
+        expiresAt: now + GUEST_HOURS * 3600000
+      };
+      saveSession(session);
+      msg.textContent = 'در حال ورود...';
+      setTimeout(unlock, 250);
+
+    } catch (err) {
+      console.error('[Gate] Guest error:', err);
+      msg.textContent = 'خطای شبکه. دوباره تلاش کن.';
+    }
+  }
+
+  function logout(){
+    clearSession();
+    const p = document.getElementById('gatePass');
+    if (p) p.value = '';
+    const m1 = document.getElementById('gateMsg');
+    if (m1) m1.textContent = '';
+    const m2 = document.getElementById('gateGuestMsg');
+    if (m2) m2.textContent = '';
+    lock();
+  }
+
+  function init(){
+    const loginBtn = document.getElementById('gateLogin');
+    const passIn   = document.getElementById('gatePass');
+    const guestBtn = document.getElementById('gateGuest');
+    const logoutB  = document.getElementById('logoutBtn');
+
+    if (loginBtn) loginBtn.addEventListener('click', function(){
+      const v = (passIn && passIn.value.trim()) || '';
+      loginWithPassword(v);
+    });
+    if (passIn) passIn.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' && loginBtn) loginBtn.click();
+    });
+    if (guestBtn) guestBtn.addEventListener('click', loginAsGuest);
+    if (logoutB)  logoutB.addEventListener('click', logout);
+
+    const s = loadSession();
+    if(s && !isExpired(s)) unlock();
+    else { clearSession(); lock(); }
+  }
+
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  window.KalameGate = {
+    reset: function(){
+      lsDel('kalame_session_v2');
+      location.reload();
+    }
+  };
+})();
+</script>
 <!-- ================= GATE END ================= -->
 
 <div id="app">
@@ -342,15 +657,22 @@ function cleanToken(t) {
   for (let i = 0; i < t.length; i++) {
     const ch = t[i];
     const code = ch.charCodeAt(0);
+
     if (code >= 0x0660 && code <= 0x0669) continue;
     if (code >= 0x06F0 && code <= 0x06F9) continue;
+
     if (code === 0x060C) continue;
     if (code === 0x061B) continue;
     if (code === 0x061F) continue;
     if (code >= 0x066A && code <= 0x066D) continue;
     if (code === 0x06D4) continue;
+
     if (ch === '\u200c') { out += ch; continue; }
-    if (code >= 0x0600 && code <= 0x06FF) { out += ch; continue; }
+
+    if (code >= 0x0600 && code <= 0x06FF) {
+      out += ch;
+      continue;
+    }
   }
   return out;
 }
@@ -358,6 +680,7 @@ function cleanToken(t) {
 function norm(s) {
   if (!s) return '';
   s = String(s).trim();
+
   const REP = {
     'ي':'ی', 'ى':'ی', 'ك':'ک',
     'ۀ':'ه', 'ة':'ه',
@@ -365,11 +688,13 @@ function norm(s) {
     'إ':'ا', 'أ':'ا', 'ٱ':'ا',
     'ـ':''
   };
+
   let stage1 = '';
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
     stage1 += (REP[ch] !== undefined ? REP[ch] : ch);
   }
+
   const nfd = stage1.normalize('NFD');
   let clean = '';
   for (let i = 0; i < nfd.length; i++) {
@@ -398,21 +723,27 @@ function loadWordsFromText(text) {
   const root = new TrieNode();
   let count = 0, skipped = 0, dupes = 0;
   const seen = new Set();
+
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
+
     const parts = line.split(/\s+/);
+
     for (let k = 0; k < parts.length; k++) {
       const cleaned = cleanToken(parts[k]);
       const w = norm(cleaned);
+
       if (!w) continue;
       if (w.length < MIN_LEN || w.length > MAX_LEN) { skipped++; continue; }
+
       let ok = true;
       for (let j = 0; j < w.length; j++) {
         if (!LETTER_SCORES[w[j]]) { ok = false; break; }
       }
       if (!ok) { skipped++; continue; }
+
       if (seen.has(w)) { dupes++; continue; }
       seen.add(w);
       trieInsert(root, w);
@@ -425,6 +756,7 @@ function loadWordsFromText(text) {
 function findWords(flat, root) {
   const found = new Map();
   const N = SIZE * SIZE;
+
   function dfs(pos, node, word, mask, score) {
     if (word.length >= MIN_LEN && node.isWord) {
       if (!found.has(word)) found.set(word, score);
@@ -440,6 +772,7 @@ function findWords(flat, root) {
       if (nn) dfs(nxt, nn, word + ch, mask | bit, score + LETTER_SCORES[ch]);
     }
   }
+
   for (let start = 0; start < N; start++) {
     const ch = flat[start];
     const n = root.children[ch];
@@ -649,271 +982,6 @@ function renderResults(results) {
   resultsScroll.appendChild(table);
 }
 
-})();
-</script>
-
-<!-- =================================================================
-     Appwrite Gate — امنیت سمت سرور
-================================================================== -->
-<script src="https://cdn.jsdelivr.net/npm/appwrite@17.0.0"></script>
-<script>
-(function(){
-  'use strict';
-
-  /* ============ اطلاعات پروژه Appwrite ============ */
-  const APPWRITE_ENDPOINT = 'https://fra.cloud.appwrite.io/v1';
-  const APPWRITE_PROJECT_ID = '6ac18432000eb4377dad';
-  const DATABASE_ID = '6ac188ac002436bf9010';
-  const TABLE_ID = '6ac1895e001bfb64bdfb';
-
-  const GUEST_HOURS = 0.5;
-  const GUEST_ONCE_PER_DEVICE = true;
-  const DEVICE_LOCK = true;
-  const USER_SESSION_HOURS = null;
-
-  const { Client, TablesDB } = Appwrite;
-  const client = new Client()
-    .setEndpoint(APPWRITE_ENDPOINT)
-    .setProject(APPWRITE_PROJECT_ID);
-  const db = new TablesDB(client);
-
-  /* ---------- ابزارها ---------- */
-  function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
-  function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
-  function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
-
-  /* ---------- Device Fingerprint ---------- */
-  async function getDeviceFingerprint() {
-    const parts = [];
-    parts.push(navigator.userAgent || '');
-    parts.push(navigator.language || '');
-    parts.push(navigator.platform || '');
-    parts.push(String(navigator.hardwareConcurrency || 0));
-    parts.push(String(navigator.maxTouchPoints || 0));
-    parts.push(String(screen.width) + 'x' + String(screen.height));
-    parts.push(String(screen.colorDepth || 0));
-    parts.push(String(window.devicePixelRatio || 1));
-    try { parts.push(Intl.DateTimeFormat().resolvedOptions().timeZone || ''); } catch(e){}
-    parts.push(String(new Date().getTimezoneOffset()));
-    try {
-      const c = document.createElement('canvas');
-      c.width = 200; c.height = 40;
-      const cx = c.getContext('2d');
-      cx.textBaseline = 'top';
-      cx.font = '14px Arial';
-      cx.fillStyle = '#f60'; cx.fillRect(10, 5, 80, 25);
-      cx.fillStyle = '#069'; cx.fillText('KalameGate', 15, 10);
-      cx.fillStyle = 'rgba(102,204,0,0.7)'; cx.fillText('Fingerprint', 20, 20);
-      parts.push(c.toDataURL());
-    } catch(e){ parts.push('canvas_err'); }
-    try {
-      const c2 = document.createElement('canvas');
-      const gl = c2.getContext('webgl') || c2.getContext('experimental-webgl');
-      if (gl) {
-        const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-        parts.push(dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))
-                       : String(gl.getParameter(gl.RENDERER)));
-      }
-    } catch(e){}
-    let str = parts.join('|||');
-    let h = 5381;
-    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
-    h = Math.abs(h).toString(36);
-    let h2 = 0;
-    const ua = navigator.userAgent || '';
-    for (let i = 0; i < ua.length; i++) h2 = (h2 * 31 + ua.charCodeAt(i)) | 0;
-    h2 = Math.abs(h2).toString(36);
-    return 'fp_' + h + '_' + h2;
-  }
-
-  /* ---------- Session (فقط نگه‌داری وضعیت ورود) ---------- */
-  function loadSession(){
-    try { return JSON.parse(lsGet('kalame_session_v2') || 'null'); } catch(e){ return null; }
-  }
-  function saveSession(s){ lsSet('kalame_session_v2', JSON.stringify(s)); }
-  function clearSession(){ lsDel('kalame_session_v2'); }
-
-  function isExpired(s){
-    if(!s) return true;
-    if(s.expiresAt == null) return false;
-    return Date.now() >= s.expiresAt;
-  }
-
-  /* ---------- Lock / Unlock ---------- */
-  let barTimer = null;
-  function lock(){
-    document.body.classList.add('locked');
-    const sb = document.getElementById('sessionBar');
-    if (sb) sb.classList.add('hidden');
-  }
-  function unlock(){
-    document.body.classList.remove('locked');
-    startSessionBar();
-  }
-
-  function startSessionBar(){
-    const bar  = document.getElementById('sessionBar');
-    const info = document.getElementById('sessionInfo');
-    if (!bar || !info) return;
-    bar.classList.remove('hidden');
-
-    function tick(){
-      const s = loadSession();
-      if(!s || isExpired(s)){ clearSession(); lock(); return; }
-      let txt = '<b>' + s.name + '</b>';
-      if(s.type === 'guest' && s.expiresAt){
-        const left = s.expiresAt - Date.now();
-        if(left <= 0){ clearSession(); lock(); return; }
-        const m = Math.floor(left / 60000);
-        const sec = Math.floor((left % 60000) / 1000);
-        txt += ' — مهمان (' + m + ' دقیقه و ' + sec + ' ثانیه باقی‌مانده)';
-      } else {
-        txt += ' — دسترسی نامحدود';
-      }
-      info.innerHTML = txt;
-    }
-    tick();
-    if(barTimer) clearInterval(barTimer);
-    barTimer = setInterval(tick, 1000);
-  }
-
-  /* ---------- ورود با پسورد (Appwrite) ---------- */
-  async function loginWithPassword(pass){
-    const msg = document.getElementById('gateMsg');
-    const loginBtn = document.getElementById('gateLogin');
-    msg.classList.remove('ok');
-    msg.textContent = '';
-
-    if(!pass){ msg.textContent = 'رمز را وارد کنید.'; return; }
-
-    loginBtn.disabled = true;
-    msg.textContent = 'در حال بررسی...';
-
-    try {
-      // ۱) چک وجود پسورد در جدول Appwrite
-      let pwRow;
-      try {
-        pwRow = await db.getRow(DATABASE_ID, TABLE_ID, pass);
-      } catch(e) {
-        // اگه پیدا نشد (404) یا هر خطای دیگه، رد می‌کنیم
-        msg.textContent = 'رمز عبور اشتباه است.';
-        loginBtn.disabled = false;
-        return;
-      }
-
-      // ۲) بررسی قفل دستگاه
-      const fp = await getDeviceFingerprint();
-
-      if (DEVICE_LOCK && pwRow.deviceId && pwRow.deviceId !== fp) {
-        msg.textContent = 'این رمز قبلاً روی دستگاه دیگری استفاده شده است.';
-        loginBtn.disabled = false;
-        return;
-      }
-
-      // ۳) موفق → ساخت جلسه
-      const session = {
-        name: 'کاربر',
-        type: 'user',
-        startedAt: Date.now(),
-        expiresAt: (USER_SESSION_HOURS == null)
-          ? null
-          : (Date.now() + USER_SESSION_HOURS * 3600000)
-      };
-      saveSession(session);
-      msg.classList.add('ok');
-      msg.textContent = 'خوش آمدید...';
-      setTimeout(unlock, 250);
-
-    } catch (err) {
-      console.error(err);
-      msg.textContent = 'خطای شبکه. دوباره تلاش کن.';
-      loginBtn.disabled = false;
-    }
-  }
-
-  /* ---------- ورود مهمان (Appwrite) ---------- */
-  async function loginAsGuest(){
-    const msg = document.getElementById('gateGuestMsg');
-    msg.textContent = '';
-
-    try {
-      const fp = await getDeviceFingerprint();
-      const guestKey = 'guest_' + fp;
-
-      if (GUEST_ONCE_PER_DEVICE) {
-        let existing;
-        try {
-          existing = await db.getRow(DATABASE_ID, TABLE_ID, guestKey);
-        } catch(e) { /* 404 = استفاده نشده */ }
-        if (existing) {
-          msg.textContent = 'ورود مهمان قبلاً در این دستگاه استفاده شده است.';
-          return;
-        }
-      }
-
-      const now = Date.now();
-      const session = {
-        name: 'مهمان',
-        type: 'guest',
-        startedAt: now,
-        expiresAt: now + GUEST_HOURS * 3600000
-      };
-      saveSession(session);
-      msg.textContent = 'در حال ورود...';
-      setTimeout(unlock, 250);
-
-    } catch (err) {
-      console.error(err);
-      msg.textContent = 'خطای شبکه. دوباره تلاش کن.';
-    }
-  }
-
-  /* ---------- خروج ---------- */
-  function logout(){
-    clearSession();
-    const p = document.getElementById('gatePass');
-    if (p) p.value = '';
-    const m1 = document.getElementById('gateMsg');
-    if (m1) m1.textContent = '';
-    const m2 = document.getElementById('gateGuestMsg');
-    if (m2) m2.textContent = '';
-    lock();
-  }
-
-  /* ---------- راه‌اندازی ---------- */
-  function init(){
-    const loginBtn = document.getElementById('gateLogin');
-    const passIn   = document.getElementById('gatePass');
-    const guestBtn = document.getElementById('gateGuest');
-    const logoutB  = document.getElementById('logoutBtn');
-
-    if (loginBtn) loginBtn.addEventListener('click', function(){
-      const v = (passIn && passIn.value.trim()) || '';
-      loginWithPassword(v);
-    });
-    if (passIn) passIn.addEventListener('keydown', function(e){
-      if(e.key === 'Enter' && loginBtn) loginBtn.click();
-    });
-    if (guestBtn) guestBtn.addEventListener('click', loginAsGuest);
-    if (logoutB)  logoutB.addEventListener('click', logout);
-
-    const s = loadSession();
-    if(s && !isExpired(s)) unlock();
-    else { clearSession(); lock(); }
-  }
-
-  if (document.readyState === 'loading') {
-    window.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
-
-  window.KalameGate = {
-    reset: function(){
-      lsDel('kalame_session_v2');
-      location.reload();
-    }
-  };
 })();
 </script>
 </body>
