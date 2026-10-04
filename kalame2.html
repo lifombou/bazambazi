@@ -132,7 +132,6 @@
 <body class="locked">
 <!-- ================= GATE START ================= -->
 <style>
-  /* ---------- GATE STYLES (هماهنگ با تم kalame.html) ---------- */
   body.locked{overflow:hidden;}
   body.locked #app{display:none !important;}
   body.locked #loading{display:none !important;}
@@ -203,7 +202,6 @@
   }
   .gate-contact a:hover{text-decoration:underline;}
 
-  /* ---------- SESSION BAR ---------- */
   #sessionBar{
     position:fixed; left:14px; bottom:14px; z-index:9990;
     display:flex; align-items:center; gap:10px;
@@ -224,7 +222,6 @@
   #logoutBtn:hover{background:#e74c3c; color:#fff;}
 </style>
 
-<!-- ===================== صفحهٔ ورود ===================== -->
 <div id="gate">
   <div class="gate-card">
     <h2>🔒 ورود به ربات</h2>
@@ -255,7 +252,7 @@
   <button id="logoutBtn">خروج</button>
 </div>
 
-<!-- ============ Appwrite Gate — امنیت سمت سرور (fetch) ============ -->
+<!-- ============ Appwrite Gate — امنیت سمت سرور (TablesDB API) ============ -->
 <script>
 (function(){
   'use strict';
@@ -327,7 +324,7 @@
   }
 
   async function apiGetRow(rowId) {
-    const url = API_BASE + '/databases/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
     const res = await fetch(url, { headers: apiHeaders() });
     if (res.status === 404) return null;
     if (!res.ok) {
@@ -339,7 +336,7 @@
   }
 
   async function apiUpdateRow(rowId, fields) {
-    const url = API_BASE + '/databases/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
     const res = await fetch(url, {
       method: 'PATCH',
       headers: apiHeaders(),
@@ -354,7 +351,7 @@
   }
 
   async function apiCreateRow(rowId, fields) {
-    const url = API_BASE + '/databases/' + DB_ID + '/tables/' + TABLE_ID + '/rows';
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows';
     const res = await fetch(url, {
       method: 'POST',
       headers: apiHeaders(),
@@ -457,7 +454,6 @@
         try {
           await apiUpdateRow(pass, { deviceId: fp });
         } catch(e) {
-          // اگه Update خاموش باشه، از ورود جلوگیری نمی‌کنیم
           console.warn('[Gate] Could not bind device:', e);
         }
       }
@@ -628,7 +624,6 @@
 (function () {
 'use strict';
 
-/* ==================== ثابت‌ها ==================== */
 const LETTER_SCORES = {
   'ا':1,'ب':1,'پ':2,'ت':1,'ث':3,'ج':2,'چ':3,
   'ح':3,'خ':2,'د':1,'ذ':3,'ر':1,'ز':2,'ژ':3,
@@ -657,22 +652,15 @@ function cleanToken(t) {
   for (let i = 0; i < t.length; i++) {
     const ch = t[i];
     const code = ch.charCodeAt(0);
-
     if (code >= 0x0660 && code <= 0x0669) continue;
     if (code >= 0x06F0 && code <= 0x06F9) continue;
-
     if (code === 0x060C) continue;
     if (code === 0x061B) continue;
     if (code === 0x061F) continue;
     if (code >= 0x066A && code <= 0x066D) continue;
     if (code === 0x06D4) continue;
-
     if (ch === '\u200c') { out += ch; continue; }
-
-    if (code >= 0x0600 && code <= 0x06FF) {
-      out += ch;
-      continue;
-    }
+    if (code >= 0x0600 && code <= 0x06FF) { out += ch; continue; }
   }
   return out;
 }
@@ -680,7 +668,6 @@ function cleanToken(t) {
 function norm(s) {
   if (!s) return '';
   s = String(s).trim();
-
   const REP = {
     'ي':'ی', 'ى':'ی', 'ك':'ک',
     'ۀ':'ه', 'ة':'ه',
@@ -688,13 +675,11 @@ function norm(s) {
     'إ':'ا', 'أ':'ا', 'ٱ':'ا',
     'ـ':''
   };
-
   let stage1 = '';
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
     stage1 += (REP[ch] !== undefined ? REP[ch] : ch);
   }
-
   const nfd = stage1.normalize('NFD');
   let clean = '';
   for (let i = 0; i < nfd.length; i++) {
@@ -723,27 +708,21 @@ function loadWordsFromText(text) {
   const root = new TrieNode();
   let count = 0, skipped = 0, dupes = 0;
   const seen = new Set();
-
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
-
     const parts = line.split(/\s+/);
-
     for (let k = 0; k < parts.length; k++) {
       const cleaned = cleanToken(parts[k]);
       const w = norm(cleaned);
-
       if (!w) continue;
       if (w.length < MIN_LEN || w.length > MAX_LEN) { skipped++; continue; }
-
       let ok = true;
       for (let j = 0; j < w.length; j++) {
         if (!LETTER_SCORES[w[j]]) { ok = false; break; }
       }
       if (!ok) { skipped++; continue; }
-
       if (seen.has(w)) { dupes++; continue; }
       seen.add(w);
       trieInsert(root, w);
