@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minesweeper 8×8 Advisor</title>
+<style>
+  :root{
+    --bg:#1c2330; --panel:#242c3d; --panel2:#2d3748;
+    --ink:#e8edf5; --muted:#95a3b8;
+    --accent:#4a90e2; --accent2:#3b7ac7;
+    --green:#2ecc71; --gold:#f1c40f; --red:#e74c3c;
+    --cell-unk:#e0cda7; --cell-unk-fg:#4a3520;
+    --cell-rev:#ffffff; --cell-rev-fg:#1a1a1a;
+    --cell-mine:#e74c3c;
+    --cell-suggest:#2ecc71;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;min-height:100vh;
+    background:linear-gradient(180deg,#1c2330,#141a24);
+    color:var(--ink);
+    font-family:Tahoma,"Segoe UI",Arial,sans-serif;
+    padding:18px 14px;
+  }
+  #app{
+    max-width:980px;margin:0 auto;
+    display:flex;flex-direction:column;gap:12px;align-items:center;
+  }
+  h1{
+    margin:0 0 4px;font-size:20px;text-align:center;
+    background:linear-gradient(90deg,#7fb4ff,#4a90e2,#a5c9ff);
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+  .card{
+    background:var(--panel);border-radius:14px;padding:14px;
+    box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+    width:100%;
+  }
+  .board-wrap{
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+  }
+  .hdr-row{
+    display:grid;grid-template-columns:34px repeat(8,52px);gap:3px;
+    justify-content:center;
+  }
+  .hdr-cell{
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;color:var(--muted);font-weight:bold;height:22px;
+  }
+  .grid{
+    display:grid;grid-template-columns:34px repeat(8,52px);gap:3px;
+    justify-content:center;
+  }
+  .row-label{
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;color:var(--muted);font-weight:bold;
+    height:52px;width:34px;
+  }
+  .cell{
+    width:52px;height:52px;border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:17px;font-weight:bold;cursor:pointer;user-select:none;
+    background:var(--cell-unk);color:var(--cell-unk-fg);
+    border:1px solid rgba(0,0,0,.15);
+    transition:transform .08s, box-shadow .12s, background .12s;
+    text-align:center;line-height:1.05;
+    font-family:'Courier New',Courier,monospace;
+  }
+  .cell:hover{transform:scale(1.04);}
+  .cell.rev{background:var(--cell-rev);color:var(--cell-rev-fg);}
+  .cell.mine{background:var(--cell-mine);color:#fff;}
+  .cell.suggest{
+    background:var(--cell-suggest)!important;color:#fff!important;
+    box-shadow:0 0 0 3px rgba(46,204,113,.35), 0 0 16px rgba(46,204,113,.7);
+  }
+  .cell.info{font-size:10px;line-height:1.15;}
+  .controls{
+    display:flex;gap:8px;flex-wrap:wrap;justify-content:center;
+  }
+  button.btn{
+    font-family:inherit;border:none;border-radius:10px;
+    padding:10px 16px;font-size:13px;font-weight:bold;
+    color:#fff;cursor:pointer;transition:.15s;
+  }
+  .btn-green{background:#27ae60;box-shadow:0 5px 14px rgba(39,174,96,.35);}
+  .btn-green:hover:not(:disabled){background:#229954;}
+  .btn-green:disabled{background:#4a5568;box-shadow:none;cursor:wait;}
+  .btn-blue{background:#3498db;}
+  .btn-blue:hover{background:#2980b9;}
+  .btn-red{background:#c0392b;}
+  .btn-red:hover{background:#a93226;}
+  .btn-purple{background:#8e44ad;}
+  .btn-purple:hover{background:#7d3c98;}
+  .status{
+    background:#34495e;color:#fff;
+    font-size:13px;font-weight:bold;padding:10px 14px;
+    border-radius:10px;text-align:center;
+    min-height:40px;display:flex;align-items:center;justify-content:center;
+    width:100%;line-height:1.6;
+  }
+  .hint{
+    font-size:11.5px;color:var(--muted);text-align:center;line-height:1.7;
+  }
+  .legend{
+    display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
+    font-size:12px;color:var(--muted);
+  }
+  .legend span b{color:var(--ink);}
+
+  /* ================= GATE / LOGIN ================= */
+  body.locked{overflow:hidden;}
+  body.locked #app{display:none !important;}
+
+  #gate{
+    position:fixed; inset:0; z-index:100000;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+    background:radial-gradient(1200px 600px at 50% -10%, #26324a, #141a24 60%, #0f131a 100%);
+    font-family:Tahoma,"Segoe UI",Arial,sans-serif;
+    direction:rtl;
+  }
+  body:not(.locked) #gate{display:none;}
+
+  .gate-card{
+    width:100%; max-width:420px;
+    background:#242c3d; border-radius:16px; padding:28px 24px 22px;
+    box-shadow:0 20px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
+    text-align:center; color:#e8edf5;
+  }
+  .gate-card h2{
+    margin:0 0 10px; font-size:20px; font-weight:bold;
+    background:linear-gradient(90deg,#7fb4ff,#4a90e2,#a5c9ff);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+  .gate-sub{margin:0 0 20px; font-size:13px; color:#95a3b8; line-height:2;}
+  #gatePass{
+    width:100%; background:#2d3748; border:1px solid #3a465a; border-radius:10px;
+    padding:12px; color:#e8edf5; font-family:inherit; font-size:17px;
+    text-align:center; letter-spacing:2px; outline:none; transition:.15s;
+    box-sizing:border-box;
+  }
+  #gatePass:focus{border-color:#4a90e2; box-shadow:0 0 0 3px rgba(74,144,226,.25);}
+  #gateLogin{
+    margin-top:12px; background:#4a90e2; color:#fff; width:100%;
+    padding:11px 16px; border:none; border-radius:10px;
+    font-family:inherit; font-size:14px; font-weight:bold; cursor:pointer;
+    box-shadow:0 4px 14px rgba(74,144,226,.4); transition:.15s;
+  }
+  #gateLogin:hover:not(:disabled){background:#3b7ac7;}
+  #gateLogin:disabled{background:#3a465a; cursor:wait;}
+  .gate-msg{min-height:20px; margin-top:10px; font-size:12.5px; color:#e74c3c; line-height:1.8;}
+  .gate-msg.ok{color:#2ecc71;}
+  .gate-sep{display:flex; align-items:center; gap:10px; margin:16px 0 12px; color:#95a3b8; font-size:11.5px;}
+  .gate-sep::before,.gate-sep::after{content:""; flex:1; height:1px; background:#3a465a;}
+  #gateGuest{
+    background:#2d3748; border:1px solid #3a465a; color:#e8edf5; width:100%;
+    padding:11px 16px; border-radius:10px; font-family:inherit;
+    font-size:13.5px; font-weight:bold; cursor:pointer;
+    box-shadow:none; transition:.15s;
+  }
+  #gateGuest:hover:not(:disabled){background:#374255;}
+  #gateGuest:disabled{opacity:.5; cursor:not-allowed;}
+  .gate-contact{
+    margin-top:20px; padding-top:14px;
+    border-top:1px dashed #3a465a;
+    font-size:12.5px; color:#95a3b8; line-height:2;
+  }
+  .gate-contact a{
+    color:#f1c40f; font-weight:bold; text-decoration:none;
+    direction:ltr; display:inline-block; unicode-bidi:embed;
+  }
+  .gate-contact a:hover{text-decoration:underline;}
+
+  #sessionBar{
+    position:fixed; left:14px; bottom:14px; z-index:9990;
+    display:flex; align-items:center; gap:10px;
+    background:rgba(36,44,61,.96); border:1px solid #3a465a; border-radius:999px;
+    padding:7px 8px 7px 14px; font-size:11.5px; color:#95a3b8;
+    font-family:Tahoma,"Segoe UI",Arial,sans-serif;
+    box-shadow:0 8px 22px rgba(0,0,0,.5); backdrop-filter:blur(6px);
+    direction:rtl;
+  }
+  #sessionBar.hidden{display:none;}
+  #sessionInfo b{color:#e8edf5;}
+  #logoutBtn{
+    width:auto; padding:6px 12px; font-size:11.5px;
+    background:#2d3748; color:#e8edf5; border-radius:999px;
+    border:none; cursor:pointer; font-family:inherit; font-weight:bold;
+    transition:.15s;
+  }
+  #logoutBtn:hover{background:#e74c3c; color:#fff;}
+
+  /* ================= PASTE MODAL ================= */
+  #pasteModal{
+    position:fixed; inset:0; z-index:99999;
+    display:none; align-items:center; justify-content:center;
+    background:rgba(10,14,20,.7); padding:20px;
+  }
+  #pasteModal.show{display:flex;}
+  .paste-card{
+    width:100%; max-width:600px;
+    background:#242c3d; border-radius:14px; padding:20px;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);
+  }
+  .paste-card h3{margin:0 0 12px; font-size:16px; color:#e8edf5;}
+  .paste-card p{margin:0 0 10px; font-size:12.5px; color:#95a3b8; line-height:1.8;}
+  .paste-card textarea{
+    width:100%; min-height:120px;
+    background:#2d3748; border:1px solid #3a465a; border-radius:10px;
+    padding:10px; color:#e8edf5; font-family:'Courier New',monospace;
+    font-size:14px; outline:none; resize:vertical; direction:ltr;
+  }
+  .paste-card textarea:focus{border-color:#4a90e2;}
+  .paste-btns{display:flex; gap:8px; justify-content:flex-end; margin-top:12px;}
+</style>
+</head>
+<body class="locked">
+
+<!-- ================= GATE START ================= -->
+<div id="gate">
+  <div class="gate-card">
+    <h2>🔒 ورود به ربات</h2>
+    <p class="gate-sub">
+      این برنامه فقط برای افراد مجاز است.<br>
+      رمز عبور اختصاصی خود را وارد کنید.
+    </p>
+
+    <input id="gatePass" type="password" autocomplete="off" spellcheck="false" placeholder="رمز عبور">
+    <button id="gateLogin">ورود</button>
+    <div class="gate-msg" id="gateMsg"></div>
+
+    <div class="gate-sep"><span>یا</span></div>
+
+    <button id="gateGuest">👤 ورود مهمان (۳۰ دقیقه از اولین ورود)</button>
+    <div class="gate-msg" id="gateGuestMsg" style="color:#95a3b8"></div>
+
+    <div class="gate-contact">
+      جهت تهیه رمز به آیدی تلگرام<br>
+      <a href="https://t.me/jkfihfjhdb" target="_blank" rel="noopener">@jkfihfjhdb</a><br>
+      مراجعه کنید.
+    </div>
+  </div>
+</div>
+
+<div id="sessionBar" class="hidden">
+  <span id="sessionInfo"></span>
+  <button id="logoutBtn">خروج</button>
+</div>
+<!-- ================= GATE END ================= -->
+
+<div id="app">
+  <h1>Minesweeper 8×8 Advisor — 15 Mines</h1>
+
+  <div class="card board-wrap">
+    <div class="hdr-row" id="hdrRow"></div>
+    <div class="grid" id="grid"></div>
+    <div class="legend">
+      <span>کلیک چپ: چرخه ? → 1 → ... → 8 → 0 → ?</span>
+      <span>کلیک راست: ? ↔ *</span>
+      <span>کلید <b>B</b>: پیشنهاد</span>
+    </div>
+    <div class="hint">
+      خانه‌های «?» ناشناخته، «*» مین تأییدشده، اعداد 0-8 شماره‌های کشف‌شده.
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-green" id="bestBtn">🧠 Best move (B)</button>
+    <button class="btn btn-blue" id="pasteBtn">📋 Paste grid</button>
+    <button class="btn btn-red" id="clearBtn">🗑️ Clear</button>
+    <button class="btn btn-purple" id="infoBtn">📊 Show p/leak</button>
+  </div>
+
+  <div class="status" id="statusBox">Ready — روی خانه‌ها کلیک کن یا B بزن</div>
+</div>
+
+<!-- Paste Modal -->
+<div id="pasteModal">
+  <div class="paste-card">
+    <h3>📋 Paste Grid</h3>
+    <p>جدول رو در قالب ۸ خط، هر خط ۸ کاراکتر پیست کن. کاراکترهای مجاز:<br>
+      <b>?</b> = ناشناخته &nbsp;|&nbsp; <b>.</b> = ۰ &nbsp;|&nbsp; <b>1..8</b> = اعداد &nbsp;|&nbsp; <b>*</b> = مین</p>
+    <textarea id="pasteArea" spellcheck="false"></textarea>
+    <div class="paste-btns">
+      <button class="btn btn-red" id="pasteCancel">لغو</button>
+      <button class="btn btn-green" id="pasteApply">اعمال</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Appwrite Gate (fetch-based) ============ -->
+<script>
+(function(){
+  'use strict';
+
+  const API_BASE   = 'https://fra.cloud.appwrite.io/v1';
+  const PROJECT_ID = '6ac18432000eb4377dad';
+  const DB_ID      = '6ac188ac002436bf9010';
+  const TABLE_ID   = '6ac1895e001bfb64bdfb';
+
+  const GUEST_HOURS = 0.5;
+  const GUEST_ONCE_PER_DEVICE = true;
+  const DEVICE_LOCK = true;
+  const USER_SESSION_HOURS = null;
+
+  function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+  function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+  function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
+
+  async function getDeviceFingerprint() {
+    const parts = [];
+    parts.push(navigator.userAgent || '');
+    parts.push(navigator.language || '');
+    parts.push(navigator.platform || '');
+    parts.push(String(navigator.hardwareConcurrency || 0));
+    parts.push(String(navigator.maxTouchPoints || 0));
+    parts.push(String(screen.width) + 'x' + String(screen.height));
+    parts.push(String(screen.colorDepth || 0));
+    parts.push(String(window.devicePixelRatio || 1));
+    try { parts.push(Intl.DateTimeFormat().resolvedOptions().timeZone || ''); } catch(e){}
+    parts.push(String(new Date().getTimezoneOffset()));
+    try {
+      const c = document.createElement('canvas');
+      c.width = 200; c.height = 40;
+      const cx = c.getContext('2d');
+      cx.textBaseline = 'top'; cx.font = '14px Arial';
+      cx.fillStyle = '#f60'; cx.fillRect(10, 5, 80, 25);
+      cx.fillStyle = '#069'; cx.fillText('MinesGate', 15, 10);
+      cx.fillStyle = 'rgba(102,204,0,0.7)'; cx.fillText('Fingerprint', 20, 20);
+      parts.push(c.toDataURL());
+    } catch(e){ parts.push('canvas_err'); }
+    try {
+      const c2 = document.createElement('canvas');
+      const gl = c2.getContext('webgl') || c2.getContext('experimental-webgl');
+      if (gl) {
+        const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+        parts.push(dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))
+                       : String(gl.getParameter(gl.RENDERER)));
+      }
+    } catch(e){}
+    let str = parts.join('|||');
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    h = Math.abs(h).toString(36);
+    let h2 = 0;
+    const ua = navigator.userAgent || '';
+    for (let i = 0; i < ua.length; i++) h2 = (h2 * 31 + ua.charCodeAt(i)) | 0;
+    h2 = Math.abs(h2).toString(36);
+    return 'fp_' + h + '_' + h2;
+  }
+
+  function apiHeaders() {
+    return {
+      'X-Appwrite-Project': PROJECT_ID,
+      'X-Appwrite-Response-Format': '1.6.0',
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+  }
+
+  async function apiGetRow(rowId) {
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
+    const res = await fetch(url, { headers: apiHeaders() });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error('API ' + res.status);
+    return await res.json();
+  }
+
+  async function apiUpdateRow(rowId, fields) {
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: apiHeaders(),
+      body: JSON.stringify({ data: fields })
+    });
+    if (!res.ok) throw new Error('API ' + res.status);
+    return await res.json();
+  }
+
+  async function apiCreateRow(rowId, fields) {
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({ rowId: rowId, data: fields })
+    });
+    if (!res.ok) throw new Error('API ' + res.status);
+    return await res.json();
+  }
+
+  function loadSession(){
+    try { return JSON.parse(lsGet('mines_session_v1') || 'null'); } catch(e){ return null; }
+  }
+  function saveSession(s){ lsSet('mines_session_v1', JSON.stringify(s)); }
+  function clearSession(){ lsDel('mines_session_v1'); }
+
+  function isExpired(s){
+    if(!s) return true;
+    if(s.expiresAt == null) return false;
+    return Date.now() >= s.expiresAt;
+  }
+
+  let barTimer = null;
+  function lock(){
+    document.body.classList.add('locked');
+    const sb = document.getElementById('sessionBar');
+    if (sb) sb.classList.add('hidden');
+  }
+  function unlock(){
+    document.body.classList.remove('locked');
+    startSessionBar();
+  }
+
+  function startSessionBar(){
+    const bar  = document.getElementById('sessionBar');
+    const info = document.getElementById('sessionInfo');
+    if (!bar || !info) return;
+    bar.classList.remove('hidden');
+
+    function tick(){
+      const s = loadSession();
+      if(!s || isExpired(s)){ clearSession(); lock(); return; }
+      let txt = '<b>' + s.name + '</b>';
+      if(s.type === 'guest' && s.expiresAt){
+        const left = s.expiresAt - Date.now();
+        if(left <= 0){ clearSession(); lock(); return; }
+        const m = Math.floor(left / 60000);
+        const sec = Math.floor((left % 60000) / 1000);
+        txt += ' — مهمان (' + m + ' دقیقه و ' + sec + ' ثانیه)';
+      } else {
+        txt += ' — دسترسی نامحدود';
+      }
+      info.innerHTML = txt;
+    }
+    tick();
+    if(barTimer) clearInterval(barTimer);
+    barTimer = setInterval(tick, 1000);
+  }
+
+  async function loginWithPassword(pass){
+    const msg = document.getElementById('gateMsg');
+    const loginBtn = document.getElementById('gateLogin');
+    msg.classList.remove('ok');
+    msg.textContent = '';
+    if(!pass){ msg.textContent = 'رمز را وارد کنید.'; return; }
+
+    loginBtn.disabled = true;
+    msg.textContent = 'در حال بررسی...';
+
+    try {
+      let row = await apiGetRow(pass).catch(() => null);
+      if (!row) {
+        msg.textContent = 'رمز عبور اشتباه است.';
+        loginBtn.disabled = false;
+        return;
+      }
+      const fp = await getDeviceFingerprint();
+      const storedDevice = (row.deviceId || '').trim();
+
+      if (DEVICE_LOCK && storedDevice && storedDevice !== fp) {
+        msg.textContent = 'این رمز قبلاً روی دستگاه دیگری استفاده شده است.';
+        loginBtn.disabled = false;
+        return;
+      }
+      if (DEVICE_LOCK && !storedDevice) {
+        try { await apiUpdateRow(pass, { deviceId: fp }); } catch(e){}
+      }
+
+      saveSession({
+        name: 'کاربر', type: 'user', startedAt: Date.now(),
+        expiresAt: (USER_SESSION_HOURS == null) ? null : (Date.now() + USER_SESSION_HOURS * 3600000)
+      });
+      msg.classList.add('ok');
+      msg.textContent = 'خوش آمدید...';
+      setTimeout(unlock, 250);
+    } catch (err) {
+      console.error(err);
+      msg.textContent = 'خطای شبکه. دوباره تلاش کن.';
+      loginBtn.disabled = false;
+    }
+  }
+
+  async function loginAsGuest(){
+    const msg = document.getElementById('gateGuestMsg');
+    msg.textContent = '';
+    try {
+      const fp = await getDeviceFingerprint();
+      const guestKey = 'guest_' + fp;
+      if (GUEST_ONCE_PER_DEVICE) {
+        const existing = await apiGetRow(guestKey).catch(() => null);
+        if (existing) {
+          msg.textContent = 'ورود مهمان قبلاً در این دستگاه استفاده شده است.';
+          return;
+        }
+        try { await apiCreateRow(guestKey, { deviceId: fp }); } catch(e){}
+      }
+      const now = Date.now();
+      saveSession({
+        name: 'مهمان', type: 'guest', startedAt: now,
+        expiresAt: now + GUEST_HOURS * 3600000
+      });
+      msg.textContent = 'در حال ورود...';
+      setTimeout(unlock, 250);
+    } catch (err) {
+      console.error(err);
+      msg.textContent = 'خطای شبکه. دوباره تلاش کن.';
+    }
+  }
+
+  function logout(){
+    clearSession();
+    const p = document.getElementById('gatePass');
+    if (p) p.value = '';
+    const m1 = document.getElementById('gateMsg');
+    if (m1) m1.textContent = '';
+    const m2 = document.getElementById('gateGuestMsg');
+    if (m2) m2.textContent = '';
+    lock();
+  }
+
+  function initGate(){
+    const loginBtn = document.getElementById('gateLogin');
+    const passIn   = document.getElementById('gatePass');
+    const guestBtn = document.getElementById('gateGuest');
+    const logoutB  = document.getElementById('logoutBtn');
+
+    if (loginBtn) loginBtn.addEventListener('click', () => {
+      const v = (passIn && passIn.value.trim()) || '';
+      loginWithPassword(v);
+    });
+    if (passIn) passIn.addEventListener('keydown', e => {
+      if(e.key === 'Enter' && loginBtn) loginBtn.click();
+    });
+    if (guestBtn) guestBtn.addEventListener('click', loginAsGuest);
+    if (logoutB)  logoutB.addEventListener('click', logout);
+
+    const s = loadSession();
+    if(s && !isExpired(s)) unlock();
+    else { clearSession(); lock(); }
+  }
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', initGate);
+  else initGate();
+})();
+</script>
+
+<!-- ================= SOLVER (الگوریتم پایتون) ================= -->
+<script>
+(function(){
+'use strict';
+
+// ==================== Constants ====================
+const N = 8;
+const TOTAL_MINES = 15;
+const FRONTIER_ENUM_LIMIT = 60000;
+const SAMPLING_N = 4000;
+const LOCAL_D = 4;
+const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+
+const NN = N * N;
+
+// Precompute neighbor indices
+const NEIGHBORS = [];
+for (let i = 0; i < NN; i++) {
+  const r = Math.floor(i/N), c = i%N;
+  const list = [];
+  for (const [dr, dc] of DIRS) {
+    const nr = r+dr, nc = c+dc;
+    if (nr>=0 && nr<N && nc>=0 && nc<N) list.push(nr*N+nc);
+  }
+  NEIGHBORS.push(list);
+}
+
+// Bit helpers (BigInt as 64-bit mask)
+function bit(i){ return 1n << BigInt(i); }
+function hasBit(mask, i){ return (mask & bit(i)) !== 0n; }
+function popcount(mask){
+  let c = 0;
+  while (mask) { mask &= mask - 1n; c++; }
+  return c;
+}
+function maskToList(mask){
+  const out = [];
+  let i = 0;
+  while (mask) {
+    if (mask & 1n) out.push(i);
+    mask >>= 1n;
+    i++;
+  }
+  return out;
+}
+function iterateMask(mask, fn){
+  let i = 0;
+  while (mask) {
+    if (mask & 1n) fn(i);
+    mask >>= 1n;
+    i++;
+  }
+}
+
+// comb(n,k) با BigInt برای دقت
+function comb(n, k){
+  if (k < 0 || k > n) return 0;
+  if (k === 0 || k === n) return 1;
+  k = Math.min(k, n-k);
+  let r = 1n;
+  for (let i = 0; i < k; i++) r = r * BigInt(n-i) / BigInt(i+1);
+  return Number(r);
+}
+
+// ==================== State ====================
+class State {
+  constructor(){
+    this.revealed = new Uint8Array(NN);
+    this.numbers = new Int8Array(NN).fill(-1);  // -1 unrevealed, -2 mine, 0-8 number
+  }
+}
+
+// ==================== CSP ====================
+function build_constraints(state){
+  const cons = [];
+  for (let i = 0; i < NN; i++) {
+    if (!state.revealed[i]) continue;
+    const num = state.numbers[i];
+    if (num < 0) continue;
+    let unknown = 0n, km = 0;
+    for (const nb of NEIGHBORS[i]) {
+      if (state.revealed[nb]) {
+        if (state.numbers[nb] === -2) km++;
+      } else {
+        unknown |= bit(nb);
+      }
+    }
+    const need = num - km;
+    if (unknown === 0n) {
+      if (need !== 0) return null;
+      continue;
+    }
+    const sz = popcount(unknown);
+    if (need < 0 || need > sz) return null;
+    cons.push([unknown, need]);
+  }
+  return cons;
+}
+
+function subset_rule(cons){
+  cons = cons.slice();
+  for (let iter = 0; iter < 20; iter++) {
+    // dedup
+    const d = new Map();
+    for (const [cells, need] of cons) {
+      const key = cells.toString();
+      if (d.has(key)) {
+        if (d.get(key) !== need) return null;
+      } else {
+        d.set(key, need);
+      }
+    }
+    cons = [];
+    for (const [k, v] of d) cons.push([BigInt(k), v]);
+
+    const cs = new Set(cons.map(([c,n]) => c.toString()+"|"+n));
+    let added = false;
+    const snap = cons.slice();
+    for (const [ci, ni] of snap) {
+      for (const [cj, nj] of snap) {
+        if (ci === cj) continue;
+        // ci proper subset of cj
+        if ((ci & cj) === ci && ci !== cj) {
+          const diff = cj & ~ci;
+          const need = nj - ni;
+          if (need < 0 || need > popcount(diff)) return null;
+          const key = diff.toString()+"|"+need;
+          if (diff !== 0n && !cs.has(key)) {
+            cons.push([diff, need]);
+            cs.add(key);
+            added = true;
+          }
+        }
+      }
+    }
+    if (!added) return cons;
+  }
+  return cons;
+}
+
+function extract_forced(cons){
+  let fm = 0n, fs = 0n;
+  for (let iter = 0; iter < 20; iter++) {
+    let changed = false;
+    for (const [cells, need] of cons) {
+      if (need === 0) {
+        const before = fs;
+        fs |= cells;
+        if (fs !== before) changed = true;
+      } else if (need === popcount(cells)) {
+        const before = fm;
+        fm |= cells;
+        if (fm !== before) changed = true;
+      }
+    }
+    if (!changed) break;
+    const newCons = [];
+    for (const [cells, need] of cons) {
+      const rem = cells & ~fm & ~fs;
+      const rn = need - popcount(cells & fm);
+      if (rem !== 0n) {
+        if (rn < 0 || rn > popcount(rem)) return null;
+        newCons.push([rem, rn]);
+      } else if (rn !== 0) return null;
+    }
+    cons = newCons;
+  }
+  return [cons, fm, fs];
+}
+
+function find_components(cons){
+  const parent = new Map();
+  function find(x){
+    while (parent.get(x) !== x) {
+      parent.set(x, parent.get(parent.get(x)));
+      x = parent.get(x);
+    }
+    return x;
+  }
+  function union(a, b){
+    const ra = find(a), rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  }
+  let all = 0n;
+  for (const [cells] of cons) all |= cells;
+  iterateMask(all, c => parent.set(c, c));
+  for (const [cells] of cons) {
+    const list = maskToList(cells);
+    for (let i = 1; i < list.length; i++) union(list[0], list[i]);
+  }
+  const groups = new Map();
+  iterateMask(all, c => {
+    const root = find(c);
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(c);
+  });
+  const cid = new Map();
+  let idx = 0;
+  for (const cells of groups.values()) {
+    for (const c of cells) cid.set(c, idx);
+    idx++;
+  }
+  const cc = new Map();
+  for (const [cells, need] of cons) {
+    const list = maskToList(cells);
+    const c0 = cid.get(list[0]);
+    if (!cc.has(c0)) cc.set(c0, []);
+    cc.get(c0).push([cells, need]);
+  }
+  return Array.from(cc.values());
+}
+
+function enumerate_component(comp_cons){
+  let allMask = 0n;
+  for (const [cells] of comp_cons) allMask |= cells;
+  const allCells = maskToList(allMask);
+  const n = allCells.length;
+  const idx = new Map();
+  allCells.forEach((c, i) => idx.set(c, i));
+
+  const cons_idx = comp_cons.map(([cells, need]) => {
+    return [maskToList(cells).map(c => idx.get(c)), need];
+  });
+
+  const cons_of = Array.from({length: n}, () => []);
+  cons_idx.forEach(([idxs], ci) => {
+    for (const i of idxs) cons_of[i].push(ci);
+  });
+
+  const order = Array.from({length: n}, (_, i) => i)
+    .sort((a, b) => cons_of[b].length - cons_of[a].length);
+
+  const assignment = new Int8Array(n).fill(-1);
+  const results = [];
+
+  function bt(k){
+    if (k === n) {
+      let m = 0n;
+      for (let i = 0; i < n; i++) {
+        if (assignment[i] === 1) m |= bit(allCells[i]);
+      }
+      results.push(m);
+      return;
+    }
+    const i = order[k];
+    for (let v = 0; v <= 1; v++) {
+      assignment[i] = v;
+      let ok = true;
+      for (const ci of cons_of[i]) {
+        const [idxs, need] = cons_idx[ci];
+        let p = 0, unk = 0;
+        for (const ii of idxs) {
+          const vv = assignment[ii];
+          if (vv === -1) unk++;
+          else if (vv === 1) p++;
+        }
+        if (p > need || p + unk < need) { ok = false; break; }
+      }
+      if (ok) bt(k+1);
+    }
+    assignment[i] = -1;
+  }
+  bt(0);
+  return [results, allCells];
+}
+
+function analyze(state){
+  let cons = build_constraints(state);
+  if (cons === null) return null;
+  cons = subset_rule(cons);
+  if (cons === null) return null;
+  const ext = extract_forced(cons);
+  if (ext === null) return null;
+  [cons, fm, fs] = ext;
+
+  let hidden = 0n;
+  for (let i = 0; i < NN; i++) if (!state.revealed[i]) hidden |= bit(i);
+
+  let already = 0;
+  for (let i = 0; i < NN; i++) if (state.revealed[i] && state.numbers[i] === -2) already++;
+  const remaining = TOTAL_MINES - already - popcount(fm);
+  if (remaining < 0) return null;
+
+  let frontier = 0n;
+  for (const [cells] of cons) frontier |= cells;
+  const non_frontier = hidden & ~frontier & ~fm & ~fs;
+
+  let comp_enum = [];
+  if (cons.length > 0) {
+    const comps = find_components(cons);
+    for (const comp of comps) {
+      const [en] = enumerate_component(comp);
+      comp_enum.push(en);
+    }
+  }
+
+  return { fm, fs, frontier, non_frontier, comp_enum, remaining, hidden };
+}
+
+// ==================== simulate outcome ====================
+function simulate_outcome(state, cell, minesMask){
+  if (hasBit(minesMask, cell)) return { type: 'MINE' };
+  const revealed = [];
+  const stack = [cell];
+  let revealedMask = 0n;
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    if (hasBit(revealedMask, cur)) continue;
+    if (state.revealed[cur]) continue;
+    if (hasBit(minesMask, cur)) continue;
+    let n = 0;
+    for (const nb of NEIGHBORS[cur]) if (hasBit(minesMask, nb)) n++;
+    revealed.push([cur, n]);
+    revealedMask |= bit(cur);
+    if (n === 0) {
+      for (const nb of NEIGHBORS[cur]) {
+        if (!state.revealed[nb] && !hasBit(minesMask, nb)) stack.push(nb);
+      }
+    }
+  }
+  revealed.sort((a, b) => a[0] - b[0]);
+  return { type: 'SAFE', revealed, mask: revealedMask };
+}
+
+function outcomeKey(out){
+  if (out.type === 'MINE') return 'MINE';
+  return 'S:' + out.revealed.map(([c,n]) => c+'_'+n).join(',');
+}
+
+// ==================== Exact evaluation ====================
+function exact_eval_cell(state, cell, an){
+  const r0 = Math.floor(cell/N), c0 = cell%N;
+  const near_nf = [];
+  let far_nf_count = 0;
+  iterateMask(an.non_frontier, c => {
+    const r = Math.floor(c/N), cc = c%N;
+    if (Math.max(Math.abs(r-r0), Math.abs(cc-c0)) <= LOCAL_D) near_nf.push(c);
+    else far_nf_count++;
+  });
+  const n_near = near_nf.length;
+  const comp_enum = an.comp_enum;
+  const fm = an.fm;
+  const remaining = an.remaining;
+
+  let product = 1;
+  for (const en of comp_enum) {
+    product *= Math.max(1, en.length);
+    if (product > FRONTIER_ENUM_LIMIT) return null;
+  }
+  if (product * Math.pow(2, n_near) > FRONTIER_ENUM_LIMIT) return null;
+
+  const near_subsets = [];
+  const nSub = 1 << n_near;
+  for (let mask = 0; mask < nSub; mask++) {
+    let s = 0n;
+    for (let i = 0; i < n_near; i++) if (mask & (1<<i)) s |= bit(near_nf[i]);
+    near_subsets.push(s);
+  }
+
+  const groups = new Map();
+  let safe_w = 0, mine_w = 0;
+  const cellBit = bit(cell);
+
+  function rec(idx, frontier_config, count){
+    if (idx === comp_enum.length) {
+      for (const extra of near_subsets) {
+        const tc = count + popcount(extra);
+        const kf = remaining - tc;
+        if (kf < 0 || kf > far_nf_count) continue;
+        const fw = comb(far_nf_count, kf);
+        const full = frontier_config | extra | fm;
+        if (hasBit(full, cell)) { mine_w += fw; continue; }
+        safe_w += fw;
+        const out = simulate_outcome(state, cell, full);
+        const key = outcomeKey(out);
+        let g = groups.get(key);
+        if (!g) {
+          g = { w: fw, mines: full, out };
+          groups.set(key, g);
+        } else {
+          g.w += fw;
+          g.mines &= full;
+        }
+      }
+      return;
+    }
+    for (const m of comp_enum[idx]) {
+      rec(idx + 1, frontier_config | m, count + popcount(m));
+    }
+  }
+  rec(0, 0n, 0);
+
+  const total_w = safe_w + mine_w;
+  if (total_w === 0) return null;
+  const p_mine = mine_w / total_w;
+  if (safe_w === 0) return [p_mine, 0];
+
+  let leak = 0;
+  for (const g of groups.values()) {
+    if (g.out.type === 'MINE') continue;
+    const revealedMask = g.out.mask;
+    const new_certain = g.mines & ~fm & ~revealedMask & ~cellBit;
+    leak += (g.w / safe_w) * popcount(new_certain);
+  }
+  return [p_mine, leak];
+}
+
+// ==================== Sampling ====================
+function sample_config(an){
+  if (an === null) return null;
+  let config = an.fm;
+  let fc = 0;
+  for (const en of an.comp_enum) {
+    if (en.length === 0) continue;
+    const m = en[Math.floor(Math.random() * en.length)];
+    config |= m;
+    fc += popcount(m);
+  }
+  const nf = maskToList(an.non_frontier);
+  const k = an.remaining - fc;
+  if (k < 0 || k > nf.length) return null;
+  if (k > 0) {
+    const shuffled = nf.slice();
+    for (let i = 0; i < k; i++) {
+      const j = i + Math.floor(Math.random() * (shuffled.length - i));
+      const t = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = t;
+      config |= bit(shuffled[i]);
+    }
+  }
+  return config;
+}
+
+function compute_certain(configs){
+  if (configs.length === 0) return 0n;
+  let inter = configs[0];
+  for (let i = 1; i < configs.length; i++) {
+    inter &= configs[i];
+    if (inter === 0n) return 0n;
+  }
+  return inter;
+}
+
+function sampled_eval_cell(state, cell, samples, old_certain){
+  const n = samples.length;
+  if (n === 0) return [0, 0];
+  const safe = samples.filter(cfg => !hasBit(cfg, cell));
+  const p_mine = 1 - safe.length / n;
+  if (safe.length === 0) return [p_mine, 0];
+
+  const groups = new Map();
+  const outMap = new Map();
+  for (const cfg of safe) {
+    const out = simulate_outcome(state, cell, cfg);
+    const key = outcomeKey(out);
+    let g = groups.get(key);
+    if (!g) {
+      g = { count: 0, configs: [] };
+      groups.set(key, g);
+      outMap.set(key, out);
+    }
+    g.count++;
+    g.configs.push(cfg);
+  }
+
+  let total_leak = 0;
+  const cellBit = bit(cell);
+  for (const [key, g] of groups) {
+    const cert = compute_certain(g.configs);
+    const out = outMap.get(key);
+    const revealedMask = out.type === 'SAFE' ? out.mask : 0n;
+    const new_c = cert & ~old_certain & ~revealedMask & ~cellBit;
+    total_leak += (g.count / safe.length) * popcount(new_c);
+  }
+  return [p_mine, total_leak];
+}
+
+// ==================== best move ====================
+function best_move(state){
+  const an = analyze(state);
+  if (an === null) return { move: null, probs: null, results: null, mode: "inconsistent" };
+  if (an.fm !== 0n) {
+    let best = -1, bestN = 999;
+    iterateMask(an.fm, c => {
+      const cnt = NEIGHBORS[c].length;
+      if (cnt < bestN) { bestN = cnt; best = c; }
+    });
+    return { move: best, probs: {}, results: null, mode: "forced-mine" };
+  }
+  let anyRev = false;
+  for (let i = 0; i < NN; i++) if (state.revealed[i]) { anyRev = true; break; }
+  if (!anyRev) return { move: 0, probs: {}, results: null, mode: "empty-board" };
+
+  const hidden = maskToList(an.hidden);
+
+  // Try exact
+  let exact_ok = true;
+  const exact_results = new Map();
+  for (const cell of hidden) {
+    const r = exact_eval_cell(state, cell, an);
+    if (r === null) { exact_ok = false; break; }
+    exact_results.set(cell, r);
+  }
+
+  if (exact_ok) {
+    const results = new Map();
+    let best = null, bv = -Infinity, bp = -Infinity, bl = Infinity;
+    for (const cell of hidden) {
+      const [p, leak] = exact_results.get(cell);
+      const v = p - (1 - p) * leak;
+      results.set(cell, { p, leak, v });
+      if (v > bv || (v === bv && (p > bp || (p === bp && leak < bl)))) {
+        best = cell; bv = v; bp = p; bl = leak;
+      }
+    }
+    const probs = {};
+    for (const [c, r] of exact_results) probs[c] = r[0];
+    _print_debug(results, best, "EXACT");
+    return { move: best, probs, results, mode: "exact" };
+  }
+
+  // Sampling fallback
+  const samples = [];
+  for (let i = 0; i < SAMPLING_N; i++) {
+    const cfg = sample_config(an);
+    if (cfg !== null) samples.push(cfg);
+  }
+  if (samples.length === 0) return { move: null, probs: {}, results: null, mode: "no-samples" };
+
+  const old_certain = compute_certain(samples);
+  const probs = {};
+  for (const c of hidden) probs[c] = 0;
+  const hiddenSet = new Set(hidden);
+  for (const cfg of samples) {
+    iterateMask(cfg, c => {
+      if (hiddenSet.has(c)) probs[c]++;
+    });
+  }
+  for (const c of hidden) probs[c] /= samples.length;
+
+  const results = new Map();
+  let best = null, bv = -Infinity, bp = -Infinity, bl = Infinity;
+  for (const cell of hidden) {
+    const [p, leak] = sampled_eval_cell(state, cell, samples, old_certain);
+    const v = p - (1 - p) * leak;
+    results.set(cell, { p, leak, v });
+    if (v > bv || (v === bv && (p > bp || (p === bp && leak < bl)))) {
+      best = cell; bv = v; bp = p; bl = leak;
+    }
+  }
+  _print_debug(results, best, "SAMPLING");
+  return { move: best, probs, results, mode: "sampling" };
+}
+
+function _print_debug(results, best, mode){
+  console.log(`\n=== [${mode}] TOP CANDIDATES (V = p − (1−p)·leak) ===`);
+  const sorted = Array.from(results.entries()).sort((a, b) => b[1].v - a[1].v);
+  for (const [c, r] of sorted.slice(0, 15)) {
+    const rr = Math.floor(c/N), cc = c%N;
+    console.log(`  r${rr+1}c${cc+1}: p=${r.p.toFixed(4)} leak=${r.leak.toFixed(3)} V=${r.v>=0?'+':''}${r.v.toFixed(4)}`);
+  }
+  if (best !== null) {
+    const br = Math.floor(best/N), bc = best%N;
+    console.log(`  → CHOSEN: r${br+1}c${bc+1}`);
+  }
+  console.log("=== end ===\n");
+}
+
+// Expose solver to UI
+window.MinesSolver = {
+  N, TOTAL_MINES, State,
+  best_move, build_constraints, analyze
+};
+
+})();
+</script>
+
+<!-- ================= UI ================= -->
+<script>
+(function(){
+'use strict';
+
+const N = 8;
+const NN = 64;
+
+// values: '?' unknown, '*' confirmed mine, 0-8 revealed number
+let values = new Array(NN).fill('?');
+let suggested = null;
+let selected = null;
+let show_info = false;
+let last_results = null;  // Map<cell, {p, leak, v}>
+
+const gridEl = document.getElementById('grid');
+const hdrEl  = document.getElementById('hdrRow');
+const statusBox = document.getElementById('statusBox');
+const bestBtn   = document.getElementById('bestBtn');
+const pasteBtn  = document.getElementById('pasteBtn');
+const clearBtn  = document.getElementById('clearBtn');
+const infoBtn   = document.getElementById('infoBtn');
+
+// Build header
+(function(){
+  let html = '<div class="hdr-cell"></div>';
+  for (let c = 0; c < N; c++) html += `<div class="hdr-cell">${c+1}</div>`;
+  hdrEl.innerHTML = html;
+})();
+
+// Build grid
+const cells = new Array(NN);
+(function(){
+  let html = '';
+  for (let r = 0; r < N; r++) {
+    html += `<div class="row-label">${r+1}</div>`;
+    for (let c = 0; c < N; c++) {
+      const i = r*N + c;
+      html += `<div class="cell" data-idx="${i}">?</div>`;
+    }
+  }
+  gridEl.innerHTML = html;
+  const els = gridEl.querySelectorAll('.cell');
+  els.forEach((el, i) => {
+    cells[i] = el;
+    el.addEventListener('click', () => onLeft(i));
+    el.addEventListener('contextmenu', e => { e.preventDefault(); onRight(i); });
+  });
+})();
+
+function onLeft(i){
+  selected = i;
+  const v = values[i];
+  const cycle = ['?', 1, 2, 3, 4, 5, 6, 7, 8, 0];
+  let idx = cycle.indexOf(v);
+  if (idx < 0) idx = 0;
+  values[i] = cycle[(idx + 1) % cycle.length];
+  suggested = null;
+  refresh();
+}
+
+function onRight(i){
+  selected = i;
+  values[i] = (values[i] === '*') ? '?' : '*';
+  suggested = null;
+  refresh();
+}
+
+function refresh(){
+  for (let i = 0; i < NN; i++) {
+    const el = cells[i];
+    const v = values[i];
+    let text;
+    el.className = 'cell';
+    if (show_info && v === '?' && last_results && last_results.has(i)) {
+      const r = last_results.get(i);
+      text = `p${Math.round(r.p*100)} L${r.leak.toFixed(1)}\nV${r.v>=0?'+':''}${r.v.toFixed(2)}`;
+      el.classList.add('info');
+    } else {
+      text = String(v);
+    }
+    el.textContent = text;
+    if (i === suggested) el.classList.add('suggest');
+    else if (v === '*') el.classList.add('mine');
+    else if (v !== '?') el.classList.add('rev');
+  }
+}
+
+function setStatus(msg){
+  statusBox.textContent = msg;
+}
+
+function build_state(){
+  const s = new MinesSolver.State();
+  for (let i = 0; i < NN; i++) {
+    const v = values[i];
+    if (v === '?') continue;
+    s.revealed[i] = 1;
+    s.numbers[i] = (v === '*') ? -2 : v;
+  }
+  return s;
+}
+
+async function bot_move(){
+  // empty board check
+  if (values.every(v => v === '?')) {
+    suggested = 0;
+    selected = 0;
+    refresh();
+    setStatus('Empty: play r1c1');
+    return;
+  }
+
+  const st = build_state();
+  if (MinesSolver.build_constraints(st) === null) {
+    setStatus('Inconsistent grid — check entries');
+    return;
+  }
+
+  bestBtn.disabled = true;
+  setStatus('Computing...');
+  await new Promise(r => setTimeout(r, 20));
+
+  const t0 = performance.now();
+  let result;
+  try {
+    result = MinesSolver.best_move(st);
+  } catch (err) {
+    console.error(err);
+    bestBtn.disabled = false;
+    setStatus('Error (see console)');
+    return;
+  }
+  const dt = performance.now() - t0;
+
+  bestBtn.disabled = false;
+
+  if (result.move === null) {
+    setStatus('No move found (' + result.mode + ')');
+    return;
+  }
+
+  suggested = result.move;
+  selected = result.move;
+  last_results = result.results || null;
+  refresh();
+
+  const r = Math.floor(result.move / N), c = result.move % N;
+  let extra = '';
+  if (result.results && result.results.has(result.move)) {
+    const rr = result.results.get(result.move);
+    extra = `  p=${(rr.p*100).toFixed(1)}%  leak=${rr.leak.toFixed(2)}  V=${rr.v>=0?'+':''}${rr.v.toFixed(3)}`;
+  }
+  setStatus(`Suggest: r${r+1}c${c+1}${extra}  [${result.mode}]  (${dt.toFixed(0)}ms)`);
+}
+
+function clearAll(){
+  values = new Array(NN).fill('?');
+  suggested = null;
+  selected = null;
+  last_results = null;
+  refresh();
+  setStatus('Cleared');
+}
+
+function toggleInfo(){
+  show_info = !show_info;
+  refresh();
+  setStatus(show_info ? 'Info mode ON' : 'Info mode OFF');
+}
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (document.body.classList.contains('locked')) return;
+  if (e.target && e.target.tagName === 'TEXTAREA') return;
+  if (e.target && e.target.tagName === 'INPUT') return;
+  if (e.key >= '0' && e.key <= '8') {
+    if (selected !== null) {
+      values[selected] = (e.key === '0') ? 0 : parseInt(e.key, 10);
+      suggested = null;
+      refresh();
+    }
+  } else if (e.key === 'm' || e.key === 'M') {
+    if (selected !== null) { values[selected] = '*'; suggested = null; refresh(); }
+  } else if (e.key === 'u' || e.key === 'U') {
+    if (selected !== null) { values[selected] = '?'; suggested = null; refresh(); }
+  } else if (e.key === 'b' || e.key === 'B') {
+    bot_move();
+  }
+});
+
+// Paste modal
+const pasteModal = document.getElementById('pasteModal');
+const pasteArea  = document.getElementById('pasteArea');
+const pasteApply = document.getElementById('pasteApply');
+const pasteCancel = document.getElementById('pasteCancel');
+
+function openPaste(){
+  // prefill current grid
+  const lines = [];
+  for (let r = 0; r < N; r++) {
+    let row = '';
+    for (let c = 0; c < N; c++) {
+      const v = values[r*N+c];
+      row += (v === '?') ? '?' : (v === '*') ? '*' : (v === 0) ? '.' : String(v);
+    }
+    lines.push(row);
+  }
+  pasteArea.value = lines.join('\n');
+  pasteModal.classList.add('show');
+  pasteArea.focus();
+}
+
+function closePaste(){
+  pasteModal.classList.remove('show');
+}
+
+function applyPaste(){
+  const raw = pasteArea.value.trim();
+  if (!raw) { closePaste(); return; }
+  let parts = raw.split(/[\s/;|]+/).filter(p => p);
+  if (parts.length === 1 && parts[0].length === N*N) {
+    const s = parts[0];
+    parts = [];
+    for (let i = 0; i < N; i++) parts.push(s.substr(i*N, N));
+  }
+  if (parts.length !== N) {
+    setStatus('Bad row count: ' + parts.length);
+    closePaste(); return;
+  }
+  const newVals = new Array(NN).fill('?');
+  for (let r = 0; r < N; r++) {
+    const ln = parts[r].replace(/\s/g, '');
+    if (ln.length !== N) {
+      setStatus('Row ' + (r+1) + ' length ' + ln.length);
+      closePaste(); return;
+    }
+    for (let c = 0; c < N; c++) {
+      const ch = ln[c];
+      if (ch === '?') newVals[r*N+c] = '?';
+      else if (ch === '*') newVals[r*N+c] = '*';
+      else if (ch === '.') newVals[r*N+c] = 0;
+      else if (ch >= '0' && ch <= '8') newVals[r*N+c] = parseInt(ch, 10);
+      else {
+        setStatus('Bad char: ' + ch);
+        closePaste(); return;
+      }
+    }
+  }
+  values = newVals;
+  suggested = null;
+  last_results = null;
+  refresh();
+  closePaste();
+  setStatus('Loaded');
+}
+
+bestBtn.addEventListener('click', bot_move);
+pasteBtn.addEventListener('click', openPaste);
+clearBtn.addEventListener('click', clearAll);
+infoBtn.addEventListener('click', toggleInfo);
+pasteApply.addEventListener('click', applyPaste);
+pasteCancel.addEventListener('click', closePaste);
+
+// Initial render
+refresh();
+
+})();
+</script>
+
+</body>
+</html>
