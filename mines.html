@@ -818,8 +818,8 @@ function analyze(state){
   if (cons === null) return null;
   const ext = extract_forced(cons);
   if (ext === null) return null;
-  [cons, fm, fs] = ext;
-
+  const [newCons, fm, fs] = ext;
+  cons = newCons;
   let hidden = 0n;
   for (let i = 0; i < NN; i++) if (!state.revealed[i]) hidden |= bit(i);
 
