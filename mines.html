@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Minesweeper 8×8 Advisor</title>
+<title>ربات حل کننده مینروب</title>
 <style>
   :root{
     --bg:#1c2330; --panel:#242c3d; --panel2:#2d3748;
@@ -251,7 +251,7 @@
 <!-- ================= GATE END ================= -->
 
 <div id="app">
-  <h1>Minesweeper 8×8 Advisor — 15 Mines</h1>
+  <h1>ربات حل کننده مینروب</h1>
 
   <div class="card board-wrap">
     <div class="hdr-row" id="hdrRow"></div>
@@ -267,19 +267,19 @@
   </div>
 
   <div class="controls">
-    <button class="btn btn-green" id="bestBtn">🧠 Best move (B)</button>
-    <button class="btn btn-blue" id="pasteBtn">📋 Paste grid</button>
-    <button class="btn btn-red" id="clearBtn">🗑️ Clear</button>
-    <button class="btn btn-purple" id="infoBtn">📊 Show p/leak</button>
+    <button class="btn btn-green" id="bestBtn">🧠 بهترین حرکت (B)</button>
+    <button class="btn btn-blue" id="pasteBtn">📋 وارد کردن دستی</button>
+    <button class="btn btn-red" id="clearBtn">🗑️ پاک کردن</button>
+    <button class="btn btn-purple" id="infoBtn">📊 نمایش احتمالات</button>
   </div>
 
-  <div class="status" id="statusBox">Ready — روی خانه‌ها کلیک کن یا B بزن</div>
+  <div class="status" id="statusBox">Ready — روی خانه ها کلیک کن</div>
 </div>
 
 <!-- Paste Modal -->
 <div id="pasteModal">
   <div class="paste-card">
-    <h3>📋 Paste Grid</h3>
+    <h3>📋 وارد کردن دستی</h3>
     <p>جدول رو در قالب ۸ خط، هر خط ۸ کاراکتر پیست کن. کاراکترهای مجاز:<br>
       <b>?</b> = ناشناخته &nbsp;|&nbsp; <b>.</b> = ۰ &nbsp;|&nbsp; <b>1..8</b> = اعداد &nbsp;|&nbsp; <b>*</b> = مین</p>
     <textarea id="pasteArea" spellcheck="false"></textarea>
@@ -1259,7 +1259,7 @@ async function bot_move(){
   bestBtn.disabled = false;
 
   if (result.move === null) {
-    setStatus('No move found (' + result.mode + ')');
+    setStatus('جدول را درست وارد کنید (' + result.mode + ')');
     return;
   }
 
