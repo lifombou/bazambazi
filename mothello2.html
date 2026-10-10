@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>اتللو ۶×۶ — مشاور هوشمند</title>
+<style>
+  :root{
+    --bg:#1c2330; --panel:#242c3d; --panel2:#2d3748;
+    --ink:#e8edf5; --muted:#95a3b8;
+    --accent:#4a90e2; --accent2:#3b7ac7;
+    --green:#27ae60; --green-hi:#2ecc71;
+    --gold:#f1c40f; --red:#e74c3c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;min-height:100vh;
+    background:linear-gradient(180deg,#1c2330,#141a24);
+    color:var(--ink);
+    font-family:Tahoma,"Segoe UI",Arial,sans-serif;
+    padding:20px 14px;
+  }
+  #app{
+    max-width:620px;margin:0 auto;
+    display:flex;flex-direction:column;gap:14px;align-items:center;
+  }
+  h1{
+    margin:0;font-size:20px;text-align:center;
+    background:linear-gradient(90deg,#7fb4ff,#4a90e2,#a5c9ff);
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+  .board-wrap{
+    padding:12px;border-radius:14px;
+    background:var(--panel);
+    box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .board{
+    display:grid;
+    grid-template-columns:repeat(6,52px);
+    grid-template-rows:repeat(6,52px);
+    gap:4px;direction:ltr;
+  }
+  .cell{
+    border-radius:8px;
+    cursor:pointer;
+    transition:background .12s, transform .08s, box-shadow .12s;
+    border:2px solid transparent;
+    background:var(--green);
+    box-shadow:inset 0 -3px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.18);
+    position:relative;
+  }
+  .cell:hover{background:var(--green-hi);}
+  .cell.black{
+    background:radial-gradient(circle at 35% 30%,#4a4a4a,#0a0a0a 70%);
+    box-shadow:inset 0 -3px 0 rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.4);
+  }
+  .cell.white{
+    background:radial-gradient(circle at 35% 30%,#ffffff,#d6dbe0 72%);
+    box-shadow:inset 0 -3px 0 rgba(0,0,0,.20), 0 0 0 1px rgba(0,0,0,.18);
+  }
+  .cell.suggest{
+    border-color:var(--gold);
+    box-shadow:0 0 0 3px rgba(241,196,15,.4), 0 0 18px rgba(241,196,15,.75);
+    animation:pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{transform:scale(1);}
+    50%{transform:scale(1.06);}
+  }
+  .board-legend{
+    display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
+    font-size:11.5px;color:var(--muted);
+  }
+  .board-legend span b{color:var(--ink);}
+  #score{
+    font-size:15px;font-weight:bold;
+    background:rgba(0,0,0,.25);
+    padding:8px 16px;border-radius:10px;
+    letter-spacing:.4px;
+  }
+  #score b.b{color:#a8c4e8;}
+  #score b.w{color:#f0e8d0;}
+  .turn{
+    display:flex;gap:18px;justify-content:center;
+    background:var(--panel);border-radius:10px;
+    padding:10px 18px;
+  }
+  .turn label{
+    display:flex;align-items:center;gap:7px;
+    font-size:13.5px;cursor:pointer;user-select:none;
+  }
+  .turn input{accent-color:var(--accent);width:15px;height:15px;}
+  .controls{
+    display:flex;gap:8px;flex-wrap:wrap;justify-content:center;
+  }
+  button.btn{
+    font-family:inherit;border:none;border-radius:10px;
+    padding:11px 18px;font-size:13.5px;font-weight:bold;
+    color:#fff;cursor:pointer;transition:.15s;
+  }
+  .btn-blue{background:var(--accent);box-shadow:0 5px 14px rgba(74,144,226,.35);}
+  .btn-blue:hover:not(:disabled){background:var(--accent2);}
+  .btn-blue:disabled{background:#4a5568;cursor:wait;box-shadow:none;}
+  .btn-green{background:#27ae60;box-shadow:0 5px 14px rgba(39,174,96,.35);}
+  .btn-green:hover{background:#229954;}
+  .btn-red{background:#c0392b;}
+  .btn-red:hover{background:#a93226;}
+  .btn-purple{background:#8e44ad;}
+  .btn-purple:hover{background:#7d3c98;}
+  #info{
+    background:var(--panel);border-radius:10px;
+    padding:12px 16px;min-height:48px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:13.5px;font-weight:bold;text-align:center;
+    width:100%;line-height:1.7;
+  }
+  #info.warn{background:#4a3a1a;color:#f1c40f;}
+  #info.ok{background:#1a3d28;color:#2ecc71;}
+  #info.err{background:#4a1a1a;color:#f5a5a5;}
+  .hint{
+    font-size:11.5px;color:var(--muted);text-align:center;line-height:1.8;
+    max-width:500px;
+  }
+
+  /* ================= GATE ================= */
+  body.locked{overflow:hidden;}
+  body.locked #app{display:none !important;}
+
+  #gate{
+    position:fixed; inset:0; z-index:100000;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+    background:radial-gradient(1200px 600px at 50% -10%, #26324a, #141a24 60%, #0f131a 100%);
+    font-family:Tahoma,"Segoe UI",Arial,sans-serif;
+    direction:rtl;
+  }
+  body:not(.locked) #gate{display:none;}
+
+  .gate-card{
+    width:100%; max-width:420px;
+    background:#242c3d; border-radius:16px; padding:28px 24px 22px;
+    box-shadow:0 20px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
+    text-align:center; color:#e8edf5;
+  }
+  .gate-card h2{
+    margin:0 0 10px; font-size:20px; font-weight:bold;
+    background:linear-gradient(90deg,#7fb4ff,#4a90e2,#a5c9ff);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+  .gate-sub{margin:0 0 20px; font-size:13px; color:#95a3b8; line-height:2;}
+  #gatePass{
+    width:100%; background:#2d3748; border:1px solid #3a465a; border-radius:10px;
+    padding:12px; color:#e8edf5; font-family:inherit; font-size:17px;
+    text-align:center; letter-spacing:2px; outline:none; transition:.15s;
+    box-sizing:border-box;
+  }
+  #gatePass:focus{border-color:#4a90e2; box-shadow:0 0 0 3px rgba(74,144,226,.25);}
+  #gateLogin{
+    margin-top:12px; background:#4a90e2; color:#fff; width:100%;
+    padding:11px 16px; border:none; border-radius:10px;
+    font-family:inherit; font-size:14px; font-weight:bold; cursor:pointer;
+    box-shadow:0 4px 14px rgba(74,144,226,.4); transition:.15s;
+  }
+  #gateLogin:hover:not(:disabled){background:#3b7ac7;}
+  #gateLogin:disabled{background:#3a465a; cursor:wait;}
+  .gate-msg{min-height:20px; margin-top:10px; font-size:12.5px; color:#e74c3c; line-height:1.8;}
+  .gate-msg.ok{color:#2ecc71;}
+  .gate-sep{display:flex; align-items:center; gap:10px; margin:16px 0 12px; color:#95a3b8; font-size:11.5px;}
+  .gate-sep::before,.gate-sep::after{content:""; flex:1; height:1px; background:#3a465a;}
+  #gateGuest{
+    background:#2d3748; border:1px solid #3a465a; color:#e8edf5; width:100%;
+    padding:11px 16px; border-radius:10px; font-family:inherit;
+    font-size:13.5px; font-weight:bold; cursor:pointer;
+    box-shadow:none; transition:.15s;
+  }
+  #gateGuest:hover:not(:disabled){background:#374255;}
+  #gateGuest:disabled{opacity:.5; cursor:not-allowed;}
+  .gate-contact{
+    margin-top:20px; padding-top:14px;
+    border-top:1px dashed #3a465a;
+    font-size:12.5px; color:#95a3b8; line-height:2;
+  }
+  .gate-contact a{
+    color:#f1c40f; font-weight:bold; text-decoration:none;
+    direction:ltr; display:inline-block; unicode-bidi:embed;
+  }
+  .gate-contact a:hover{text-decoration:underline;}
+
+  #sessionBar{
+    position:fixed; left:14px; bottom:14px; z-index:9990;
+    display:flex; align-items:center; gap:10px;
+    background:rgba(36,44,61,.96); border:1px solid #3a465a; border-radius:999px;
+    padding:7px 8px 7px 14px; font-size:11.5px; color:#95a3b8;
+    font-family:Tahoma,"Segoe UI",Arial,sans-serif;
+    box-shadow:0 8px 22px rgba(0,0,0,.5); backdrop-filter:blur(6px);
+    direction:rtl;
+  }
+  #sessionBar.hidden{display:none;}
+  #sessionInfo b{color:#e8edf5;}
+  #logoutBtn{
+    width:auto; padding:6px 12px; font-size:11.5px;
+    background:#2d3748; color:#e8edf5; border-radius:999px;
+    border:none; cursor:pointer; font-family:inherit; font-weight:bold;
+    transition:.15s;
+  }
+  #logoutBtn:hover{background:#e74c3c; color:#fff;}
+</style>
+</head>
+<body class="locked">
+
+<!-- ===================== صفحهٔ ورود ===================== -->
+<div id="gate">
+  <div class="gate-card">
+    <h2>🔒 ورود به ربات</h2>
+    <p class="gate-sub">
+      این برنامه فقط برای افراد مجاز است.<br>
+      رمز عبور اختصاصی خود را وارد کنید.
+    </p>
+
+    <input id="gatePass" type="password" autocomplete="off" spellcheck="false" placeholder="رمز عبور">
+    <button id="gateLogin">ورود</button>
+    <div class="gate-msg" id="gateMsg"></div>
+
+    <div class="gate-sep"><span>یا</span></div>
+
+    <button id="gateGuest">👤 ورود مهمان (۳۰ دقیقه از اولین ورود)</button>
+    <div class="gate-msg" id="gateGuestMsg" style="color:#95a3b8"></div>
+
+    <div class="gate-contact">
+      جهت تهیه رمز به آیدی تلگرام<br>
+      <a href="https://t.me/jkfihfjhdb" target="_blank" rel="noopener">@jkfihfjhdb</a><br>
+      مراجعه کنید.
+    </div>
+  </div>
+</div>
+
+<div id="sessionBar" class="hidden">
+  <span id="sessionInfo"></span>
+  <button id="logoutBtn">خروج</button>
+</div>
+
+<div id="app">
+  <h1>اتللو ۶×۶ — مشاور هوشمند</h1>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="board-legend">
+    <span>کلیک چپ: <b>خالی → سیاه → سفید → خالی</b></span>
+    <span>کلیک راست: <b>خالی کردن خانه</b></span>
+  </div>
+
+  <div id="score"><b class="b">سیاه: 0</b> &nbsp;|&nbsp; <b class="w">سفید: 0</b></div>
+
+  <div class="turn">
+    <label><input type="radio" name="turn" value="1" checked> محاسبه برای سیاه</label>
+    <label><input type="radio" name="turn" value="2"> محاسبه برای سفید</label>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-blue" id="suggestBtn">🧠 پیشنهاد بهترین حرکت</button>
+    <button class="btn btn-green" id="standardBtn">♟️ چیدمان استاندارد</button>
+    <button class="btn btn-red" id="clearBtn">🗑️ پاک کردن</button>
+  </div>
+
+  <div id="info">وضعیت صفحه رو با کلیک روی خانه‌ها بساز، سپس «پیشنهاد» رو بزن.</div>
+
+  <div class="hint">
+    رنگ محاسبه رو انتخاب کن، «پیشنهاد بهترین حرکت» رو بزن. خانه‌ی پیشنهادی طلایی می‌شه.
+    روی همون خانه کلیک کن تا حرکت اجرا بشه و مهره‌ها برگردن.
+  </div>
+</div>
+
+<!-- ============ Appwrite Gate (fetch-based) ============ -->
+<script>
+(function(){
+  'use strict';
+
+  const API_BASE   = 'https://fra.cloud.appwrite.io/v1';
+  const PROJECT_ID = '6ac18432000eb4377dad';
+  const DB_ID      = '6ac188ac002436bf9010';
+  const TABLE_ID   = '6ac1895e001bfb64bdfb';
+
+  const GUEST_HOURS = 0.5;
+  const GUEST_ONCE_PER_DEVICE = true;
+  const DEVICE_LOCK = true;
+  const USER_SESSION_HOURS = null;
+
+  function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+  function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+  function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
+
+  async function getDeviceFingerprint() {
+    const parts = [];
+    parts.push(navigator.userAgent || '');
+    parts.push(navigator.language || '');
+    parts.push(navigator.platform || '');
+    parts.push(String(navigator.hardwareConcurrency || 0));
+    parts.push(String(navigator.maxTouchPoints || 0));
+    parts.push(String(screen.width) + 'x' + String(screen.height));
+    parts.push(String(screen.colorDepth || 0));
+    parts.push(String(window.devicePixelRatio || 1));
+    try { parts.push(Intl.DateTimeFormat().resolvedOptions().timeZone || ''); } catch(e){}
+    parts.push(String(new Date().getTimezoneOffset()));
+    try {
+      const c = document.createElement('canvas');
+      c.width = 200; c.height = 40;
+      const cx = c.getContext('2d');
+      cx.textBaseline = 'top'; cx.font = '14px Arial';
+      cx.fillStyle = '#f60'; cx.fillRect(10, 5, 80, 25);
+      cx.fillStyle = '#069'; cx.fillText('KalameGate', 15, 10);
+      cx.fillStyle = 'rgba(102,204,0,0.7)'; cx.fillText('Fingerprint', 20, 20);
+      parts.push(c.toDataURL());
+    } catch(e){ parts.push('canvas_err'); }
+    try {
+      const c2 = document.createElement('canvas');
+      const gl = c2.getContext('webgl') || c2.getContext('experimental-webgl');
+      if (gl) {
+        const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+        parts.push(dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))
+                       : String(gl.getParameter(gl.RENDERER)));
+      }
+    } catch(e){}
+    let str = parts.join('|||');
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    h = Math.abs(h).toString(36);
+    let h2 = 0;
+    const ua = navigator.userAgent || '';
+    for (let i = 0; i < ua.length; i++) h2 = (h2 * 31 + ua.charCodeAt(i)) | 0;
+    h2 = Math.abs(h2).toString(36);
+    return 'fp_' + h + '_' + h2;
+  }
+
+  function apiHeaders() {
+    return {
+      'X-Appwrite-Project': PROJECT_ID,
+      'X-Appwrite-Response-Format': '1.6.0',
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+  }
+
+  async function apiGetRow(rowId) {
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
+    const res = await fetch(url, { headers: apiHeaders() });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error('API ' + res.status);
+    return await res.json();
+  }
+
+  async function apiUpdateRow(rowId, fields) {
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: apiHeaders(),
+      body: JSON.stringify({ data: fields })
+    });
+    if (!res.ok) throw new Error('API ' + res.status);
+    return await res.json();
+  }
+
+  async function apiCreateRow(rowId, fields) {
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({ rowId: rowId, data: fields })
+    });
+    if (!res.ok) throw new Error('API ' + res.status);
+    return await res.json();
+  }
+
+  function loadSession(){
+    try { return JSON.parse(lsGet('othello_session_v1') || 'null'); } catch(e){ return null; }
+  }
+  function saveSession(s){ lsSet('othello_session_v1', JSON.stringify(s)); }
+  function clearSession(){ lsDel('othello_session_v1'); }
+
+  function isExpired(s){
+    if(!s) return true;
+    if(s.expiresAt == null) return false;
+    return Date.now() >= s.expiresAt;
+  }
+
+  let barTimer = null;
+  function lock(){
+    document.body.classList.add('locked');
+    const sb = document.getElementById('sessionBar');
+    if (sb) sb.classList.add('hidden');
+  }
+  function unlock(){
+    document.body.classList.remove('locked');
+    startSessionBar();
+  }
+
+  function startSessionBar(){
+    const bar  = document.getElementById('sessionBar');
+    const info = document.getElementById('sessionInfo');
+    if (!bar || !info) return;
+    bar.classList.remove('hidden');
+
+    function tick(){
+      const s = loadSession();
+      if(!s || isExpired(s)){ clearSession(); lock(); return; }
+      let txt = '<b>' + s.name + '</b>';
+      if(s.type === 'guest' && s.expiresAt){
+        const left = s.expiresAt - Date.now();
+        if(left <= 0){ clearSession(); lock(); return; }
+        const m = Math.floor(left / 60000);
+        const sec = Math.floor((left % 60000) / 1000);
+        txt += ' — مهمان (' + m + ' دقیقه و ' + sec + ' ثانیه)';
+      } else {
+        txt += ' — دسترسی نامحدود';
+      }
+      info.innerHTML = txt;
+    }
+    tick();
+    if(barTimer) clearInterval(barTimer);
+    barTimer = setInterval(tick, 1000);
+  }
+
+  async function loginWithPassword(pass){
+    const msg = document.getElementById('gateMsg');
+    const loginBtn = document.getElementById('gateLogin');
+    msg.classList.remove('ok');
+    msg.textContent = '';
+    if(!pass){ msg.textContent = 'رمز را وارد کنید.'; return; }
+
+    loginBtn.disabled = true;
+    msg.textContent = 'در حال بررسی...';
+
+    try {
+      let row = await apiGetRow(pass).catch(() => null);
+      if (!row) {
+        msg.textContent = 'رمز عبور اشتباه است.';
+        loginBtn.disabled = false;
+        return;
+      }
+      const fp = await getDeviceFingerprint();
+      const storedDevice = (row.deviceId || '').trim();
+
+      if (DEVICE_LOCK && storedDevice && storedDevice !== fp) {
+        msg.textContent = 'این رمز قبلاً روی دستگاه دیگری استفاده شده است.';
+        loginBtn.disabled = false;
+        return;
+      }
+      if (DEVICE_LOCK && !storedDevice) {
+        try { await apiUpdateRow(pass, { deviceId: fp }); } catch(e){}
+      }
+
+      saveSession({
+        name: 'کاربر', type: 'user', startedAt: Date.now(),
+        expiresAt: (USER_SESSION_HOURS == null) ? null : (Date.now() + USER_SESSION_HOURS * 3600000)
+      });
+      msg.classList.add('ok');
+      msg.textContent = 'خوش آمدید...';
+      setTimeout(unlock, 250);
+    } catch (err) {
+      console.error(err);
+      msg.textContent = 'خطای شبکه. دوباره تلاش کن.';
+      loginBtn.disabled = false;
+    }
+  }
+
+  async function loginAsGuest(){
+    const msg = document.getElementById('gateGuestMsg');
+    msg.textContent = '';
+    try {
+      const fp = await getDeviceFingerprint();
+      const guestKey = 'guest_' + fp;
+      if (GUEST_ONCE_PER_DEVICE) {
+        const existing = await apiGetRow(guestKey).catch(() => null);
+        if (existing) {
+          msg.textContent = 'ورود مهمان قبلاً در این دستگاه استفاده شده است.';
+          return;
+        }
+        try { await apiCreateRow(guestKey, { deviceId: fp }); } catch(e){}
+      }
+      const now = Date.now();
+      saveSession({
+        name: 'مهمان', type: 'guest', startedAt: now,
+        expiresAt: now + GUEST_HOURS * 3600000
+      });
+      msg.textContent = 'در حال ورود...';
+      setTimeout(unlock, 250);
+    } catch (err) {
+      console.error(err);
+      msg.textContent = 'خطای شبکه. دوباره تلاش کن.';
+    }
+  }
+
+  function logout(){
+    clearSession();
+    const p = document.getElementById('gatePass');
+    if (p) p.value = '';
+    const m1 = document.getElementById('gateMsg');
+    if (m1) m1.textContent = '';
+    const m2 = document.getElementById('gateGuestMsg');
+    if (m2) m2.textContent = '';
+    lock();
+  }
+
+  function initGate(){
+    const loginBtn = document.getElementById('gateLogin');
+    const passIn   = document.getElementById('gatePass');
+    const guestBtn = document.getElementById('gateGuest');
+    const logoutB  = document.getElementById('logoutBtn');
+
+    if (loginBtn) loginBtn.addEventListener('click', () => {
+      const v = (passIn && passIn.value.trim()) || '';
+      loginWithPassword(v);
+    });
+    if (passIn) passIn.addEventListener('keydown', e => {
+      if(e.key === 'Enter' && loginBtn) loginBtn.click();
+    });
+    if (guestBtn) guestBtn.addEventListener('click', loginAsGuest);
+    if (logoutB)  logoutB.addEventListener('click', logout);
+
+    const s = loadSession();
+    if(s && !isExpired(s)) unlock();
+    else { clearSession(); lock(); }
+  }
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', initGate);
+  else initGate();
+})();
+</script>
+
+<!-- ================= GAME (Othello Advisor) ================= -->
+<script>
+'use strict';
+
+// ============================================================
+//  هسته بازی اتللو ۶×۶ (بدون تغییر منطقی)
+// ============================================================
+const SIZE = 6;
+const EMPTY = 0, BLACK = 1, WHITE = 2;
+const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+
+const WEIGHTS = [
+  [120, -80,  20,  20, -80, 120],
+  [-80, -40,  -5,  -5, -40, -80],
+  [ 20,  -5,   5,   5,  -5,  20],
+  [ 20,  -5,   5,   5,  -5,  20],
+  [-80, -40,  -5,  -5, -40, -80],
+  [120, -80,  20,  20, -80, 120]
+];
+
+const other = p => (p === BLACK ? WHITE : BLACK);
+const isOnBoard = (r, c) => (r >= 0 && r < SIZE && c >= 0 && c < SIZE);
+
+function createEmptyBoard() {
+  return Array.from({ length: SIZE }, () => Array(SIZE).fill(EMPTY));
+}
+
+function initStandardBoard() {
+  const b = createEmptyBoard();
+  b[2][2] = WHITE; b[2][3] = BLACK;
+  b[3][2] = BLACK; b[3][3] = WHITE;
+  return b;
+}
+
+function getValidMoves(board, player) {
+  const opp = other(player);
+  const moves = [];
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (board[r][c] !== EMPTY) continue;
+      let valid = false;
+      for (const [dr, dc] of DIRS) {
+        let nr = r + dr, nc = c + dc, found = false;
+        while (isOnBoard(nr, nc) && board[nr][nc] === opp) {
+          nr += dr; nc += dc; found = true;
+        }
+        if (found && isOnBoard(nr, nc) && board[nr][nc] === player) {
+          valid = true; break;
+        }
+      }
+      if (valid) moves.push([r, c]);
+    }
+  }
+  return moves;
+}
+
+function simulateMove(board, r, c, player) {
+  const nb = board.map(row => [...row]);
+  nb[r][c] = player;
+  const opp = other(player);
+  for (const [dr, dc] of DIRS) {
+    let nr = r + dr, nc = c + dc;
+    const toFlip = [];
+    while (isOnBoard(nr, nc) && nb[nr][nc] === opp) {
+      toFlip.push([nr, nc]);
+      nr += dr; nc += dc;
+    }
+    if (toFlip.length && isOnBoard(nr, nc) && nb[nr][nc] === player) {
+      for (const [fr, fc] of toFlip) nb[fr][fc] = player;
+    }
+  }
+  return nb;
+}
+
+function countPieces(board) {
+  let black = 0, white = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (board[r][c] === BLACK) black++;
+      else if (board[r][c] === WHITE) white++;
+    }
+  }
+  return { black, white };
+}
+
+function evaluateBoard(board, player) {
+  const opp = other(player);
+  let score = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (board[r][c] === player) score += WEIGHTS[r][c];
+      else if (board[r][c] === opp) score -= WEIGHTS[r][c];
+    }
+  }
+  const myMoves = getValidMoves(board, player).length;
+  const oppMoves = getValidMoves(board, opp).length;
+  score += (myMoves - oppMoves) * 15;
+  return score;
+}
+
+// ============================================================
+//  Negamax + Alpha-Beta + TT (بدون تغییر)
+// ============================================================
+const transpositionTable = new Map();
+const TT_EXACT = 0, TT_LOWER = 1, TT_UPPER = 2;
+
+function boardToString(board) {
+  let s = '';
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++) s += board[r][c];
+  return s;
+}
+
+function negamax(board, depth, alpha, beta, player, passed) {
+  if (passed === undefined) passed = false;
+
+  const boardKey = boardToString(board) + player;
+  const ttEntry = transpositionTable.get(boardKey);
+  if (ttEntry && ttEntry.depth >= depth) {
+    if (ttEntry.flag === TT_EXACT) return ttEntry.value;
+    if (ttEntry.flag === TT_LOWER && ttEntry.value > alpha) alpha = ttEntry.value;
+    if (ttEntry.flag === TT_UPPER && ttEntry.value < beta) beta = ttEntry.value;
+    if (alpha >= beta) return ttEntry.value;
+  }
+
+  const moves = getValidMoves(board, player);
+
+  if (moves.length === 0) {
+    if (passed) {
+      const { black, white } = countPieces(board);
+      const myCount = player === BLACK ? black : white;
+      const oppCount = player === BLACK ? white : black;
+      if (myCount > oppCount) return 10000 + (myCount - oppCount);
+      if (myCount < oppCount) return -10000 + (myCount - oppCount);
+      return 0;
+    }
+    return -negamax(board, depth, -beta, -alpha, other(player), true);
+  }
+
+  if (depth === 0) return evaluateBoard(board, player);
+
+  let maxEval = -Infinity;
+  moves.sort((a, b) => WEIGHTS[b[0]][b[1]] - WEIGHTS[a[0]][a[1]]);
+
+  for (const [r, c] of moves) {
+    const nb = simulateMove(board, r, c, player);
+    const evalScore = -negamax(nb, depth - 1, -beta, -alpha, other(player), false);
+    if (evalScore > maxEval) maxEval = evalScore;
+    if (evalScore > alpha) alpha = evalScore;
+    if (alpha >= beta) break;
+  }
+
+  let flag = TT_EXACT;
+  if (maxEval <= alpha) flag = TT_UPPER;
+  else if (maxEval >= beta) flag = TT_LOWER;
+  transpositionTable.set(boardKey, { depth, value: maxEval, flag });
+
+  return maxEval;
+}
+
+function findBestMove(board, player, maxDepth) {
+  if (maxDepth === undefined) maxDepth = 12;
+  const moves = getValidMoves(board, player);
+  if (moves.length === 0) return null;
+
+  let bestMove = moves[0];
+  let bestScore = -Infinity;
+  transpositionTable.clear();
+
+  for (const [r, c] of moves) {
+    const nb = simulateMove(board, r, c, player);
+    const score = -negamax(nb, maxDepth - 1, -Infinity, Infinity, other(player));
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = [r, c];
+    }
+  }
+  return { move: bestMove, score: bestScore, totalMoves: moves.length };
+}
+
+// ============================================================
+//  رابط کاربری — بازنویسی‌شده برای رفتار «مشاور»
+// ============================================================
+const boardEl = document.getElementById('board');
+const infoEl  = document.getElementById('info');
+const scoreEl = document.getElementById('score');
+const suggestBtn = document.getElementById('suggestBtn');
+const standardBtn = document.getElementById('standardBtn');
+const clearBtn = document.getElementById('clearBtn');
+
+let board = createEmptyBoard();
+let suggestedCell = null;
+let suggestedForPlayer = null;
+const cells = [];
+
+function getSelectedPlayer() {
+  const el = document.querySelector('input[name="turn"]:checked');
+  return el ? parseInt(el.value, 10) : BLACK;
+}
+
+function buildBoardUI() {
+  boardEl.innerHTML = '';
+  cells.length = 0;
+  for (let r = 0; r < SIZE; r++) {
+    cells.push([]);
+    for (let c = 0; c < SIZE; c++) {
+      const el = document.createElement('div');
+      el.className = 'cell';
+      el.dataset.r = r;
+      el.dataset.c = c;
+      el.addEventListener('click', (function(rr, cc){
+        return function(e){
+          if (e.shiftKey) { clearCell(rr, cc); return; }
+          handleCellClick(rr, cc);
+        };
+      })(r, c));
+      el.addEventListener('contextmenu', function(e){
+        e.preventDefault();
+        clearCell(r, c);
+      });
+      boardEl.appendChild(el);
+      cells[r].push(el);
+    }
+  }
+}
+
+function renderBoard() {
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const el = cells[r][c];
+      el.classList.remove('black', 'white', 'suggest');
+      if (board[r][c] === BLACK) el.classList.add('black');
+      else if (board[r][c] === WHITE) el.classList.add('white');
+      if (suggestedCell && suggestedCell[0] === r && suggestedCell[1] === c) {
+        el.classList.add('suggest');
+      }
+    }
+  }
+  updateScore();
+}
+
+function updateScore() {
+  const { black, white } = countPieces(board);
+  scoreEl.innerHTML = `<b class="b">سیاه: ${black}</b> &nbsp;|&nbsp; <b class="w">سفید: ${white}</b>`;
+}
+
+function handleCellClick(r, c) {
+  // اگر خانه‌ی پیشنهادی هست و کاربر روش کلیک کرد → حرکت رو اجرا کن
+  if (suggestedCell && suggestedCell[0] === r && suggestedCell[1] === c) {
+    applySuggestedMove();
+    return;
+  }
+
+  // در غیر این صورت: چرخه‌ی وضعیت
+  const cur = board[r][c];
+  let nxt;
+  if (cur === EMPTY) nxt = BLACK;
+  else if (cur === BLACK) nxt = WHITE;
+  else nxt = EMPTY;
+
+  board[r][c] = nxt;
+  suggestedCell = null;
+  suggestedForPlayer = null;
+  setInfo('وضعیت تغییر کرد. برای پیشنهاد، دکمه‌ی «پیشنهاد بهترین حرکت» رو بزن.', '');
+  renderBoard();
+}
+
+function clearCell(r, c) {
+  board[r][c] = EMPTY;
+  suggestedCell = null;
+  suggestedForPlayer = null;
+  renderBoard();
+}
+
+function setInfo(text, cls) {
+  infoEl.textContent = text;
+  infoEl.className = '';
+  if (cls) infoEl.classList.add(cls);
+}
+
+function applySuggestedMove() {
+  if (!suggestedCell) return;
+  const [r, c] = suggestedCell;
+  const player = suggestedForPlayer;
+  if (player == null) return;
+
+  board = simulateMove(board, r, c, player);
+  suggestedCell = null;
+  suggestedForPlayer = null;
+  renderBoard();
+
+  const colLetter = String.fromCharCode(65 + c);
+  const rowNumber = r + 1;
+  setInfo(`✅ حرکت ${colLetter}${rowNumber} برای ${player === BLACK ? 'سیاه' : 'سفید'} اجرا شد. حالا رنگ مخالف رو انتخاب کن یا پیشنهاد بگیر.`, 'ok');
+
+  // رنگ محاسبه رو خودکار عوض کن
+  const nextPlayer = other(player);
+  document.querySelector(`input[name="turn"][value="${nextPlayer}"]`).checked = true;
+}
+
+function suggestMove() {
+  const player = getSelectedPlayer();
+  const playerName = player === BLACK ? 'سیاه' : 'سفید';
+
+  // چک: حداقل یه مهره توی تخته باشه (چون اگر تخته خالیه، حرکتی وجود نداره)
+  const { black, white } = countPieces(board);
+  if (black + white === 0) {
+    setInfo('صفحه خالیه. اول با کلیک، مهره‌ها رو بچین (یا دکمه‌ی «چیدمان استاندارد» رو بزن).', 'warn');
+    return;
+  }
+
+  const valid = getValidMoves(board, player);
+  if (valid.length === 0) {
+    setInfo(`⚠️ برای ${playerName} هیچ حرکت مجازی وجود نداره.`, 'warn');
+    suggestedCell = null;
+    suggestedForPlayer = null;
+    renderBoard();
+    return;
+  }
+
+  suggestBtn.disabled = true;
+  setInfo('⏳ در حال محاسبه‌ی بهترین حرکت...', '');
+
+  setTimeout(function(){
+    const t0 = performance.now();
+    let result;
+    try {
+      result = findBestMove(board, player, 12);
+    } catch(err) {
+      console.error(err);
+      suggestBtn.disabled = false;
+      setInfo('خطا در محاسبه. دوباره تلاش کن.', 'err');
+      return;
+    }
+    const dt = (performance.now() - t0).toFixed(0);
+
+    suggestBtn.disabled = false;
+
+    if (!result || !result.move) {
+      setInfo('حرکتی پیدا نشد.', 'warn');
+      return;
+    }
+
+    suggestedCell = result.move;
+    suggestedForPlayer = player;
+    renderBoard();
+
+    const [r, c] = result.move;
+    const colLetter = String.fromCharCode(65 + c);
+    const rowNumber = r + 1;
+
+    setInfo(
+      `🧠 بهترین حرکت برای ${playerName}:  ${colLetter}${rowNumber}  ` +
+      `(ردیف ${rowNumber}، ستون ${colLetter}) — ` +
+      `از بین ${result.totalMoves} حرکت مجاز • ${dt}ms\n` +
+      `روی همون خانه‌ی طلایی کلیک کن تا اجرا بشه.`,
+      'ok'
+    );
+  }, 20);
+}
+
+function startStandard() {
+  board = initStandardBoard();
+  suggestedCell = null;
+  suggestedForPlayer = null;
+  document.querySelector('input[name="turn"][value="1"]').checked = true;
+  renderBoard();
+  setInfo('چیدمان استاندارد اتللو ۶×۶ بارگذاری شد. حالا می‌تونی «پیشنهاد بهترین حرکت» رو بزنی.', 'ok');
+}
+
+function clearAll() {
+  board = createEmptyBoard();
+  suggestedCell = null;
+  suggestedForPlayer = null;
+  renderBoard();
+  setInfo('صفحه پاک شد. با کلیک روی خانه‌ها وضعیت رو بچین.', '');
+}
+
+// اتصال دکمه‌ها
+suggestBtn.addEventListener('click', suggestMove);
+standardBtn.addEventListener('click', startStandard);
+clearBtn.addEventListener('click', clearAll);
+
+// راه‌اندازی
+buildBoardUI();
+renderBoard();
+setInfo('وضعیت صفحه رو با کلیک روی خانه‌ها بساز (چرخه: خالی → سیاه → سفید → خالی). ' +
+        'برای شروع سریع، «چیدمان استاندارد» رو بزن.', '');
+
+</script>
+
+</body>
+</html>
