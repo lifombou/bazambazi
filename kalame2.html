@@ -364,6 +364,30 @@
     return await res.json();
   }
 
+  async function logFailedAttempt(attemptedPass) {
+    try {
+      const fp = await getDeviceFingerprint();
+      // ارسال به یک Table جداگانه به اسم failed_logins
+      const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/failed_logins/rows';
+      await fetch(url, {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          rowId: 'try_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+          data: {
+            attemptedPass: attemptedPass,
+            deviceId: fp,
+            timestamp: new Date().toISOString(),
+            browser: (navigator.userAgent || '').slice(0, 255)
+          }
+        })
+      });
+    } catch (err) {
+      // اگه لاگ نویسی شکست خورد، جلوی ورود رو نمی‌گیریم
+      console.warn('[Gate] Could not log failed attempt:', err);
+    }
+  }
+
   function loadSession(){
     try { return JSON.parse(lsGet('kalame_session_v2') || 'null'); } catch(e){ return null; }
   }
@@ -424,17 +448,19 @@
     loginBtn.disabled = true;
     msg.textContent = 'در حال بررسی...';
 
-    try {
+        try {
       let row;
       try {
         row = await apiGetRow(pass);
       } catch(e) {
+        logFailedAttempt(pass);
         msg.textContent = 'رمز عبور اشتباه است.';
         loginBtn.disabled = false;
         return;
       }
 
-      if (!row) {
+            if (!row) {
+        logFailedAttempt(pass);
         msg.textContent = 'رمز عبور اشتباه است.';
         loginBtn.disabled = false;
         return;
