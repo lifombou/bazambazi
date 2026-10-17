@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>اتللو ۶×۶ - دستیار هوشمند</title>
+    <title>اتللو ۶×۶ - دستیار هوشمند (اوراکل)</title>
     <style>
         /* ================= استایل‌های اصلی بازی ================= */
         body {
@@ -244,7 +244,7 @@
         <button onclick="startGame(2)">⚪ من سفید هستم</button>
     </div>
 
-    <h1>اتللو ۶×۶ - دستیار هوشمند</h1>
+    <h1>اتللو ۶×۶ - دستیار هوشمند (اوراکل)</h1>
     <div class="subtitle">حرکات دوستتان را هم روی صفحه کلیک کنید.</div>
 
     <div id="board-container">
@@ -267,7 +267,6 @@
   const API_BASE   = 'https://fra.cloud.appwrite.io/v1';
   const PROJECT_ID = '6ac18432000eb4377dad';
   const DB_ID      = '6ac188ac002436bf9010';
-  // ⚠️ اگر برای این بازی جدول جدا ساختی، TABLE_ID را عوض کن
   const TABLE_ID   = '6ac1895e001bfb64bdfb'; 
 
   const GUEST_HOURS = 0.5;
@@ -381,12 +380,12 @@
 
     try {
       const row = await apiGetRow(s.password).catch(() => null);
-      if (!row) return true; // رمز پاک شده
-      if (row.banned === true || row.banned === 'true') return true; // بن شده
+      if (!row) return true;
+      if (row.banned === true || row.banned === 'true') return true;
 
       const currentVer = String(row.sessionVersion || '1');
       const myVer = String(s.sessionVersion || '1');
-      if (currentVer !== myVer) return true; // کیک شده
+      if (currentVer !== myVer) return true;
 
       return false;
     } catch (e) {
@@ -565,7 +564,7 @@
 })();
 </script>
 
-<!-- ===================== منطق اصلی بازی اتللو ===================== -->
+<!-- ===================== منطق اصلی بازی اتللو (اتصال به اوراکل) ===================== -->
 <script>
 const SIZE = 6;
 const EMPTY = 0, BLACK = 1, WHITE = 2;
@@ -580,43 +579,65 @@ let isOracleThinking = false;
 let bestSuggestedMove = null;
 let lastMove = null;
 
-// اتصال به موتور اوراکل (Web Worker)
-// فایل‌های o66.worker و wasm باید کنار همین فایل باشند
-const oracleWorker = new Worker('o66.worker-BZ6snYWF.js');
+// ============================================================
+// ⚠️ مسیر فایل Worker با توجه به اینکه در پوشه assets است اصلاح شد
+// ============================================================
+let oracleWorker = null;
 
-oracleWorker.onmessage = function(event) {
-    const response = event.data;
-    let move = null;
-    if (response && (Array.isArray(response) || response.move !== undefined)) {
-        if (Array.isArray(response)) move = response;
-        else if (response.move) move = response.move;
-    }
+function initOracleWorker() {
+    if (oracleWorker) return;
+    
+    // مسیر دقیق فایل در پوشه assets
+    oracleWorker = new Worker('assets/o66.worker-BZ6snYWF.js');
 
-    if (move && move.length === 2) {
-        bestSuggestedMove = { r: move[0], c: move[1] };
-        isOracleThinking = false;
-        renderBoard();
-        document.getElementById('status').textContent = 'حرکت پیشنهادی سبز رنگ را کلیک کنید.';
-    } else {
-        isOracleThinking = false;
-        bestSuggestedMove = null;
-        document.getElementById('status').textContent = 'شما حرکتی ندارید! نوبت به حریف می‌رسد.';
-        setTimeout(passTurn, 1000);
-    }
-};
+    oracleWorker.onerror = function(e) {
+        console.error("Worker Error:", e);
+        document.getElementById('status').textContent = 'خطا در بارگذاری موتور ربات.';
+        document.getElementById('status').style.color = '#e74c3c';
+    };
+
+    oracleWorker.onmessage = function(event) {
+        const response = event.data;
+        let move = null;
+
+        if (Array.isArray(response)) {
+            move = response;
+        } else if (response && Array.isArray(response.move)) {
+            move = response.move;
+        } else if (response && response.move !== undefined) {
+            move = response.move;
+        }
+
+        if (move && move.length === 2) {
+            bestSuggestedMove = { r: move[0], c: move[1] };
+            isOracleThinking = false;
+            renderBoard();
+            document.getElementById('status').textContent = 'حرکت پیشنهادی سبز رنگ را کلیک کنید.';
+            document.getElementById('status').style.color = '#f1c40f';
+        } else {
+            isOracleThinking = false;
+            bestSuggestedMove = null;
+            document.getElementById('status').textContent = 'شما حرکتی ندارید!';
+            setTimeout(passTurn, 1000);
+        }
+    };
+}
 
 function askOracle() {
     if (gameOver) return;
+    initOracleWorker();
+    if (!oracleWorker) return;
+
     isOracleThinking = true;
     bestSuggestedMove = null;
-    document.getElementById('status').textContent = 'ربات در حال محاسبه بهترین حرکت...';
+    document.getElementById('status').textContent = 'اوراکل در حال محاسبه بهترین حرکت...';
+    document.getElementById('status').style.color = '#f1c40f';
 
     let blackBits = 0n;
     let whiteBits = 0n;
     for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
-            const bitIndex = BigInt(r * SIZE + c);
-            const mask = 1n << bitIndex;
+            const mask = 1n << BigInt(r * SIZE + c);
             if (board[r][c] === BLACK) blackBits |= mask;
             else if (board[r][c] === WHITE) whiteBits |= mask;
         }
@@ -631,16 +652,16 @@ function askOracle() {
     });
 }
 
+// ============================================================
+// توابع بازی
+// ============================================================
 function createEmptyBoard() { return Array.from({ length: SIZE }, () => Array(SIZE).fill(EMPTY)); }
-
 function initBoard() {
     board = createEmptyBoard();
     board[2][2] = BLACK; board[2][3] = WHITE;
     board[3][2] = WHITE; board[3][3] = BLACK;
 }
-
 function isOnBoard(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
-
 function getValidMoves(board, player) {
     const opp = player === BLACK ? WHITE : BLACK;
     const moves = [];
@@ -656,7 +677,6 @@ function getValidMoves(board, player) {
     }
     return moves;
 }
-
 function simulateMove(board, r, c, player) {
     const nb = board.map(row => [...row]);
     nb[r][c] = player;
@@ -671,7 +691,6 @@ function simulateMove(board, r, c, player) {
     }
     return nb;
 }
-
 function countPieces(board) {
     let black = 0, white = 0;
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
@@ -680,17 +699,12 @@ function countPieces(board) {
     }
     return { black, white };
 }
-
 function passTurn() {
     currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
-    lastMove = null;
-    renderBoard();
-    checkTurn();
+    lastMove = null; renderBoard(); checkTurn();
 }
-
 function checkTurn() {
     if (gameOver) return;
-    
     const validMoves = getValidMoves(board, currentPlayer);
     if (validMoves.length === 0) {
         const otherPlayer = currentPlayer === BLACK ? WHITE : BLACK;
@@ -698,104 +712,58 @@ function checkTurn() {
             gameOver = true;
             const { black, white } = countPieces(board);
             let msg = `بازی تمام شد! سیاه: ${black} - سفید: ${white}. `;
-            if (black > white) msg += '⚫ سیاه برنده شد!';
-            else if (white > black) msg += '⚪ سفید برنده شد!';
-            else msg += '🤝 مساوی!';
-            document.getElementById('status').textContent = msg;
+            if (black > white) msg += '⚫ سیاه برنده شد!'; else if (white > black) msg += '⚪ سفید برنده شد!'; else msg += '🤝 مساوی!';
+            document.getElementById('status').textContent = msg; document.getElementById('status').style.color = '#2ecc71';
         } else {
             document.getElementById('status').textContent = 'حرکتی وجود ندارد! پاس داده شد.';
             setTimeout(passTurn, 1000);
         }
         return;
     }
-
-    if (currentPlayer === myColor) {
-        askOracle();
-    } else {
+    if (currentPlayer === myColor) { askOracle(); } 
+    else {
         document.getElementById('status').textContent = 'نوبت دوست شماست (هر خانه‌ای را کلیک کنید).';
-        bestSuggestedMove = null;
-        renderBoard();
+        bestSuggestedMove = null; renderBoard();
     }
 }
-
 function renderBoard() {
-    const boardEl = document.getElementById('board');
-    boardEl.innerHTML = '';
+    const boardEl = document.getElementById('board'); boardEl.innerHTML = '';
     const validMoves = gameOver ? [] : getValidMoves(board, currentPlayer);
-
     for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
-            const cell = document.createElement('div');
-            cell.className = 'cell';
-            
-            if (board[r][c] === BLACK) cell.classList.add('black');
-            else if (board[r][c] === WHITE) cell.classList.add('white');
-            
-            if (lastMove && lastMove.r === r && lastMove.c === c) {
-                cell.classList.add('last-move');
-            }
-
-            if (bestSuggestedMove && bestSuggestedMove.r === r && bestSuggestedMove.c === c) {
-                cell.classList.add('suggestion');
-            }
-
+            const cell = document.createElement('div'); cell.className = 'cell';
+            if (board[r][c] === BLACK) cell.classList.add('black'); else if (board[r][c] === WHITE) cell.classList.add('white');
+            if (lastMove && lastMove.r === r && lastMove.c === c) cell.classList.add('last-move');
+            if (bestSuggestedMove && bestSuggestedMove.r === r && bestSuggestedMove.c === c) cell.classList.add('suggestion');
             if (!gameOver && validMoves.some(([vr, vc]) => vr === r && vc === c)) {
                 if (currentPlayer === myColor) {
-                    if (bestSuggestedMove && bestSuggestedMove.r === r && bestSuggestedMove.c === c) {
-                        cell.onclick = () => handleMove(r, c);
-                    } else {
-                        cell.classList.add('disabled');
-                    }
-                } else {
-                    cell.onclick = () => handleMove(r, c);
-                }
-            } else {
-                cell.classList.add('disabled');
-            }
-            
+                    if (bestSuggestedMove && bestSuggestedMove.r === r && bestSuggestedMove.c === c) cell.onclick = () => handleMove(r, c);
+                    else cell.classList.add('disabled');
+                } else cell.onclick = () => handleMove(r, c);
+            } else cell.classList.add('disabled');
             boardEl.appendChild(cell);
         }
     }
     updateScore();
 }
-
 function updateScore() {
     const { black, white } = countPieces(board);
-    document.getElementById('scoreBlack').textContent = black;
-    document.getElementById('scoreWhite').textContent = white;
+    document.getElementById('scoreBlack').textContent = black; document.getElementById('scoreWhite').textContent = white;
 }
-
 function handleMove(r, c) {
     if (gameOver || isOracleThinking) return;
-
     board = simulateMove(board, r, c, currentPlayer);
-    lastMove = { r, c };
-    bestSuggestedMove = null;
-    
+    lastMove = { r, c }; bestSuggestedMove = null;
     currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
-    renderBoard();
-    checkTurn();
+    renderBoard(); checkTurn();
 }
-
 function startGame(color) {
-    myColor = color;
-    friendColor = color === BLACK ? WHITE : BLACK;
+    myColor = color; friendColor = color === BLACK ? WHITE : BLACK;
     document.getElementById('colorOverlay').style.display = 'none';
-    
-    initBoard();
-    currentPlayer = BLACK;
-    gameOver = false;
-    isOracleThinking = false;
-    lastMove = null;
-    bestSuggestedMove = null;
-    
-    renderBoard();
-    checkTurn();
+    initBoard(); currentPlayer = BLACK; gameOver = false; isOracleThinking = false; lastMove = null; bestSuggestedMove = null;
+    renderBoard(); checkTurn();
 }
-
-initBoard();
-renderBoard();
+initBoard(); renderBoard();
 </script>
-
 </body>
 </html>
