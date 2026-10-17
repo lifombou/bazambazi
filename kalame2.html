@@ -149,8 +149,7 @@
     width:100%; max-width:420px;
     background:#242c3d; border-radius:16px; padding:28px 24px 22px;
     box-shadow:0 20px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
-    text-align:center;
-    color:#e8edf5;
+    text-align:center; color:#e8edf5;
   }
   .gate-card h2{
     margin:0 0 10px; font-size:20px; font-weight:bold;
@@ -166,7 +165,6 @@
     box-sizing:border-box;
   }
   #gatePass:focus{border-color:#4a90e2; box-shadow:0 0 0 3px rgba(74,144,226,.25);}
-
   #gateLogin{
     margin-top:12px; background:#4a90e2; color:#fff; width:100%;
     padding:11px 16px; border:none; border-radius:10px;
@@ -266,6 +264,9 @@
   const GUEST_ONCE_PER_DEVICE = true;
   const DEVICE_LOCK = true;
   const USER_SESSION_HOURS = null;
+
+  const ACCESS_PREFIX = 'kalame_access_';
+  const SESSION_KEY   = 'kalame_session_v2';
 
   function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
   function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
@@ -367,7 +368,6 @@
   async function logFailedAttempt(attemptedPass) {
     try {
       const fp = await getDeviceFingerprint();
-      // ارسال به یک Table جداگانه به اسم failed_logins
       const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/failed_logins/rows';
       await fetch(url, {
         method: 'POST',
@@ -383,21 +383,44 @@
         })
       });
     } catch (err) {
-      // اگه لاگ نویسی شکست خورد، جلوی ورود رو نمی‌گیریم
       console.warn('[Gate] Could not log failed attempt:', err);
     }
   }
 
   function loadSession(){
-    try { return JSON.parse(lsGet('kalame_session_v2') || 'null'); } catch(e){ return null; }
+    try { return JSON.parse(lsGet(SESSION_KEY) || 'null'); } catch(e){ return null; }
   }
-  function saveSession(s){ lsSet('kalame_session_v2', JSON.stringify(s)); }
-  function clearSession(){ lsDel('kalame_session_v2'); }
+  function saveSession(s){ lsSet(SESSION_KEY, JSON.stringify(s)); }
+  function clearSession(){ lsDel(SESSION_KEY); }
 
   function isExpired(s){
     if(!s) return true;
     if(s.expiresAt == null) return false;
     return Date.now() >= s.expiresAt;
+  }
+
+  async function checkKicked() {
+    const s = loadSession();
+    if (!s || isExpired(s)) return false;
+    if (s.type !== 'user') return false;
+    if (!s.password) return false;
+
+    try {
+      const row = await apiGetRow(s.password).catch(() => null);
+      if (!row) return true;  // رمز پاک شده
+
+      if (row.banned === true || row.banned === 'true') return true;
+
+      const currentVer = String(row.sessionVersion || '1');
+      const myVer = String(s.sessionVersion || '1');
+      if (currentVer !== myVer) {
+        console.log('[Gate] Kicked: version changed', myVer, '->', currentVer);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
   }
 
   let barTimer = null;
@@ -448,7 +471,7 @@
     loginBtn.disabled = true;
     msg.textContent = 'در حال بررسی...';
 
-        try {
+    try {
       let row;
       try {
         row = await apiGetRow(pass);
@@ -459,22 +482,37 @@
         return;
       }
 
-            if (!row) {
+      if (!row) {
         logFailedAttempt(pass);
         msg.textContent = 'رمز عبور اشتباه است.';
         loginBtn.disabled = false;
         return;
       }
 
+      // بن کامل
+      if (row.banned === true || row.banned === 'true') {
+        msg.textContent = 'دسترسی شما مسدود شده است.';
+        loginBtn.disabled = false;
+        return;
+      }
+
       const fp = await getDeviceFingerprint();
       const storedDevice = (row.deviceId || '').trim();
+      const hasLocalAccess = lsGet(ACCESS_PREFIX + pass) === '1';
 
-      if (DEVICE_LOCK && storedDevice && storedDevice !== fp) {
+      // اجازه فقط اگه:
+      // ۱. این مرورگر قبلاً موفق وارد شده (access marker)
+      // ۲. یا deviceId خالیه (اولین بار)
+      // ۳. یا deviceId با fp فعلی یکیه
+      const allowed = hasLocalAccess || !storedDevice || storedDevice === fp;
+
+      if (!allowed) {
         msg.textContent = 'این رمز قبلاً روی دستگاه دیگری استفاده شده است.';
         loginBtn.disabled = false;
         return;
       }
 
+      // اگه اولین بار روی این دستگاهه، deviceId رو ست کن
       if (DEVICE_LOCK && !storedDevice) {
         try {
           await apiUpdateRow(pass, { deviceId: fp });
@@ -483,9 +521,14 @@
         }
       }
 
+      // ست کردن access marker برای ورودهای بعدی از همین مرورگر
+      lsSet(ACCESS_PREFIX + pass, '1');
+
       const session = {
         name: 'خودم ساختما 😝',
         type: 'user',
+        password: pass,
+        sessionVersion: String(row.sessionVersion || '1'),
         startedAt: Date.now(),
         expiresAt: (USER_SESSION_HOURS == null)
           ? null
@@ -574,6 +617,21 @@
     const s = loadSession();
     if(s && !isExpired(s)) unlock();
     else { clearSession(); lock(); }
+
+    // بررسی کیک هر ۱۵ ثانیه
+    setInterval(async () => {
+      if (document.body.classList.contains('locked')) return;
+      const kicked = await checkKicked();
+      if (kicked) {
+        clearSession();
+        lock();
+        const msg = document.getElementById('gateMsg');
+        if (msg) {
+          msg.style.color = '#e74c3c';
+          msg.textContent = 'دسترسی شما توسط مدیر قطع شد. لطفاً دوباره وارد شوید.';
+        }
+      }
+    }, 15000);
   }
 
   if (document.readyState === 'loading') {
@@ -584,7 +642,11 @@
 
   window.KalameGate = {
     reset: function(){
-      lsDel('kalame_session_v2');
+      // پاک کردن همه access marker ها
+      Object.keys(localStorage).forEach(function(k){
+        if (k.indexOf(ACCESS_PREFIX) === 0) lsDel(k);
+      });
+      lsDel(SESSION_KEY);
       location.reload();
     }
   };
@@ -676,9 +738,6 @@ const NEIGHBORS = (function(){
   return n;
 })();
 
-/* =====================================================================
-   cleanToken — فقط حروف فارسی و نیم‌فاصله را نگه می‌دارد.
-   ===================================================================== */
 function cleanToken(t) {
   let out = '';
   for (let i = 0; i < t.length; i++) {
@@ -697,11 +756,6 @@ function cleanToken(t) {
   return out;
 }
 
-/* =====================================================================
-   norm — نرمال‌سازی کامل:
-     - تبدیل همه گونه‌های عربی/کردی/فارسی به فرم استاندارد
-     - حذف نیم‌فاصله، ZWJ، BOM، فاصله، اعراب
-   ===================================================================== */
 function norm(s) {
   if (!s) return '';
   s = String(s).trim();
@@ -733,7 +787,6 @@ function norm(s) {
   return clean;
 }
 
-/* ==================== Trie ==================== */
 class TrieNode { constructor() { this.children = Object.create(null); this.isWord = false; } }
 function trieInsert(root, w) {
   let n = root;
@@ -746,19 +799,11 @@ function trieInsert(root, w) {
   n.isWord = true;
 }
 
-/* =====================================================================
-   loadWordsFromText — بهبود یافته:
-     ۱) ابتدا ZWNJ و ZWJ را از کل متن حذف می‌کند تا تقسیم‌بندی درست باشد
-     ۲) هر خط را با فاصله می‌شکند → هر توکن را اضافه می‌کند
-     ۳) اگر خط بیش از یک توکن داشت، نسخه‌ی چسبیده‌ی کل خط را هم اضافه می‌کند
-        (برای کلماتی مثل «برنج کوب» که با فاصله ذخیره شده‌اند)
-   ===================================================================== */
 function loadWordsFromText(text) {
   const root = new TrieNode();
   let count = 0, skipped = 0, dupes = 0;
   const seen = new Set();
 
-  // مرحله ۱: حذف کاراکترهای نامرئی از کل متن قبل از تقسیم‌بندی
   text = text.replace(/\u200c/g, '');
   text = text.replace(/\u200d/g, '');
   text = text.replace(/\ufeff/g, '');
@@ -784,16 +829,11 @@ function loadWordsFromText(text) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
-
     const parts = line.split(/\s+/).filter(Boolean);
     if (parts.length === 0) continue;
-
-    // هر توکن جداگانه
     for (let k = 0; k < parts.length; k++) {
       tryAdd(parts[k]);
     }
-
-    // نسخه‌ی چسبیده (اگر خط چند توکن داشت)
     if (parts.length > 1) {
       tryAdd(parts.join(''));
     }
@@ -801,7 +841,6 @@ function loadWordsFromText(text) {
   return { root, count, skipped, dupes };
 }
 
-/* ==================== جست‌وجو در تخته ==================== */
 function findWords(flat, root) {
   const found = new Map();
   const N = SIZE * SIZE;
@@ -830,7 +869,6 @@ function findWords(flat, root) {
   return found;
 }
 
-/* ==================== Base64 → UTF-8 ==================== */
 function b64ToUtf8(b64) {
   const bin = atob(b64);
   const len = bin.length;
@@ -839,7 +877,6 @@ function b64ToUtf8(b64) {
   return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
 }
 
-/* ==================== رابط کاربری ==================== */
 const $ = id => document.getElementById(id);
 const boardEl       = $('board');
 const lettersInput  = $('lettersInput');
@@ -899,16 +936,23 @@ function renderBoard() {
   for (let i = 0; i < SIZE*SIZE; i++) cellEls[i].textContent = boardLetters[i] || '';
 }
 
+/* =====================================================================
+   ⭐ تغییر: پر شدن حروف از بالا-راست به جای بالا-چپ
+   ===================================================================== */
 lettersInput.addEventListener('input', function () {
   const s = norm(lettersInput.value);
   boardLetters = new Array(SIZE*SIZE).fill('');
-  for (let i = 0; i < Math.min(s.length, SIZE*SIZE); i++) boardLetters[i] = s[i];
+  const limit = Math.min(s.length, SIZE*SIZE);
+  for (let i = 0; i < limit; i++) {
+    const row = Math.floor(i / SIZE);
+    const col = SIZE - 1 - (i % SIZE);  // از راست به چپ
+    boardLetters[row * SIZE + col] = s[i];
+  }
   renderBoard();
 });
 
 function updateFromBoard() { lettersInput.value = boardLetters.join(''); }
 
-/* ==================== بارگذاری داده جاسازی‌شده ==================== */
 let trieRoot = null;
 let dictLoaded = false;
 
@@ -945,7 +989,6 @@ let dictLoaded = false;
   }
 })();
 
-/* ==================== جست‌وجو ==================== */
 searchBtn.addEventListener('click', function () {
   if (!dictLoaded) { alert('فرهنگ لغات آماده نیست.'); return; }
 
@@ -980,7 +1023,6 @@ searchBtn.addEventListener('click', function () {
     try {
       const found = findWords(flat, trieRoot);
       results = Array.from(found.entries());
-
       results.sort(function (a, b) {
         if (b[1] !== a[1]) return b[1] - a[1];
         if (b[0].length !== a[0].length) return b[0].length - a[0].length;
@@ -1035,13 +1077,6 @@ function renderResults(results) {
   resultsScroll.appendChild(table);
 }
 
-/* =====================================================================
-   ابزار دیباگ — توی Console مرورگر قابل استفاده است
-   مثال:
-     KalameDebug.isWordInTrie('برنجکوب')
-     KalameDebug.canFormOnBoard('برنجکوب')
-     KalameDebug.status()
-   ===================================================================== */
 window.KalameDebug = {
   isWordInTrie: function(word) {
     const w = norm(word);
@@ -1050,25 +1085,14 @@ window.KalameDebug = {
     for (let i = 0; i < w.length; i++) {
       if (!node.children[w[i]]) {
         return {
-          inTrie: false,
-          original: word,
-          normalized: w,
-          length: w.length,
-          failedAt: i,
-          charAtFail: w[i],
-          charCode: w.charCodeAt(i).toString(16)
+          inTrie: false, original: word, normalized: w, length: w.length,
+          failedAt: i, charAtFail: w[i], charCode: w.charCodeAt(i).toString(16)
         };
       }
       node = node.children[w[i]];
     }
-    return {
-      inTrie: node.isWord,
-      original: word,
-      normalized: w,
-      length: w.length
-    };
+    return { inTrie: node.isWord, original: word, normalized: w, length: w.length };
   },
-
   canFormOnBoard: function(word) {
     const w = norm(word);
     if (!boardLetters || boardLetters.some(l => !l)) {
@@ -1102,7 +1126,6 @@ window.KalameDebug = {
     }
     return { canForm: false, normalized: w };
   },
-
   status: function() {
     return {
       boardJoined: boardLetters.join(''),
@@ -1110,7 +1133,6 @@ window.KalameDebug = {
       trieLoaded: dictLoaded
     };
   },
-
   norm: norm
 };
 
