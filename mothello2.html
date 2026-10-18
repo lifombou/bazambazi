@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>اتللو ۶×۶ - اوراکل</title>
+    <title>اتللو ۶×۶ - اوراکل مطلق</title>
     <link rel="icon" href="data:,">
     <style>
         body {
@@ -505,8 +505,8 @@ async function initOracleWorker() {
     try {
         document.getElementById('status').textContent = 'در حال بارگذاری موتور اوراکل...';
         
-        // لود کردن مستقیم فایل ورکر (مطمئن شوید در پوشه assets است)
-        oracleWorker = new Worker('assets/worker.js');
+        // 🔥 این خط کلیدی است: نوع ورکر را به 'module' تغییر می‌دهیم
+        oracleWorker = new Worker('assets/worker.js', { type: 'module' });
         
         oracleWorker.onmessage = function(event) {
             const responseData = event.data;
@@ -561,7 +561,7 @@ async function initOracleWorker() {
             document.getElementById('status').style.color = '#e74c3c';
         };
         
-        // ⚠️ یک تاخیر ۳ ثانیه‌ای برای اینکه مغز WASM فرصت لود شدن پیدا کند
+        // یک تاخیر ۳ ثانیه‌ای برای اینکه مغز WASM فرصت لود شدن پیدا کند
         setTimeout(() => {
             if (currentPlayer === aiColor && !gameOver) {
                 askOracle();
