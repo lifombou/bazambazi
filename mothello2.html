@@ -489,13 +489,13 @@ const EMPTY = 0, BLACK = 1, WHITE = 2;
 const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
 
 let board = [];
-let currentPlayer = BLACK;
+let currentPlayer = BLACK; // همیشه سیاه شروع می‌کند
 let gameOver = false;
 let myColor = BLACK;
 let aiColor = WHITE;
 let isOracleThinking = false;
 let lastBotMove = null; 
-let moveHistory = []; // تاریخچه حرکات (بدون ۴ مهره اولیه)
+let moveHistory = []; // آرایه‌ای مسطح از مختصات (1-based)
 
 let oracleWorker = null;
 
@@ -523,9 +523,12 @@ function initOracleWorker() {
                 const r = Math.floor(moveIndex / SIZE);
                 const c = moveIndex % SIZE;
                 
+                // اعمال حرکت روی صفحه
                 board = simulateMove(board, r, c, aiColor);
+                // ذخیره در تاریخچه با مختصات 1-based (چون اوراکل 1-based است)
+                moveHistory.push(r + 1, c + 1);
+                
                 lastBotMove = { r, c };
-                moveHistory.push(r, c); // ثبت حرکت اوراکل در تاریخچه
                 currentPlayer = myColor;
                 
                 isOracleThinking = false;
@@ -535,11 +538,8 @@ function initOracleWorker() {
                 document.getElementById('status').style.color = '#2ecc71';
                 
                 setTimeout(() => {
-                    if (!gameOver) {
-                        document.getElementById('status').textContent = 'نوبت شماست. یک خانه را انتخاب کنید.';
-                        document.getElementById('status').style.color = '#f1c40f';
-                    }
-                }, 1500);
+                    checkTurn(); // رفتن به نوبت کاربر
+                }, 1000);
                 
             } else {
                 isOracleThinking = false;
@@ -567,8 +567,8 @@ function askOracle() {
     
     if (!oracleWorker) {
         initOracleWorker();
-        // اگر اوراکل تازه شروع شده، کمی صبر کن تا لود شود
-        setTimeout(askOracle, 1000);
+        // صبر برای لود شدن ورکر در اولین حرکت
+        setTimeout(() => { if (currentPlayer === aiColor) askOracle(); }, 1500);
         return;
     }
 
@@ -582,17 +582,16 @@ function askOracle() {
 }
 
 // ============================================================
-// توابع بازی (دقیقاً استاندارد اتللو)
+// توابع بازی
 // ============================================================
 function createEmptyBoard() { return Array.from({ length: SIZE }, () => Array(SIZE).fill(EMPTY)); }
 
 function initBoard() {
     board = createEmptyBoard();
-    // چیدمان استاندارد: سفید بالا-چپ، سیاه بالا-راست، سیاه پایین-چپ، سفید پایین-راست
+    // چیدمان استاندارد اتللو ۶×۶ (0-based)
     board[2][2] = WHITE; board[2][3] = BLACK;
     board[3][2] = BLACK; board[3][3] = WHITE;
     
-    // 🔥 بسیار مهم: تاریخچه از صفر شروع می‌شود. اوراکل خودش چیدمان اولیه را می‌داند.
     moveHistory = []; 
 }
 
@@ -634,12 +633,6 @@ function countPieces(board) {
     }
     return { black, white };
 }
-function passTurn() {
-    currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
-    lastBotMove = null; 
-    renderBoard(); 
-    checkTurn();
-}
 function checkTurn() {
     if (gameOver) return;
     const validMoves = getValidMoves(board, currentPlayer);
@@ -655,16 +648,15 @@ function checkTurn() {
             document.getElementById('status').style.color = '#2ecc71';
         } else {
             document.getElementById('status').textContent = 'حرکتی وجود ندارد! پاس داده شد.';
-            setTimeout(passTurn, 1000);
+            currentPlayer = otherPlayer;
+            setTimeout(checkTurn, 1000);
         }
         return;
     }
     
     if (currentPlayer === myColor) {
-        if (document.getElementById('status').textContent !== '✅ حرکت توسط اوراکل انجام شد.') {
-            document.getElementById('status').textContent = 'نوبت شماست. یک خانه را انتخاب کنید.';
-            document.getElementById('status').style.color = '#f1c40f';
-        }
+        document.getElementById('status').textContent = 'نوبت شماست. یک خانه را انتخاب کنید.';
+        document.getElementById('status').style.color = '#f1c40f';
         renderBoard(); 
     } else {
         renderBoard(); 
@@ -712,8 +704,8 @@ function handleMove(r, c) {
     if (gameOver || isOracleThinking || currentPlayer !== myColor) return;
     
     board = simulateMove(board, r, c, currentPlayer);
+    moveHistory.push(r + 1, c + 1); // ذخیره با مختصات 1-based
     lastBotMove = null; 
-    moveHistory.push(r, c); // ثبت حرکت شما در تاریخچه
     
     currentPlayer = aiColor; 
     renderBoard(); 
@@ -725,21 +717,13 @@ function startGame(color) {
     document.getElementById('colorOverlay').style.display = 'none';
     
     initBoard(); 
-    currentPlayer = BLACK; 
+    currentPlayer = BLACK; // همیشه سیاه شروع می‌کند
     gameOver = false; 
     isOracleThinking = false; 
     lastBotMove = null; 
     
     renderBoard(); 
-    
-    if (aiColor === BLACK) {
-        document.getElementById('status').textContent = 'آماده‌سازی اوراکل...';
-        initOracleWorker(); 
-        // صبر می‌کنیم تا اوراکل لود شود و سپس اولین حرکت را می‌خواهیم
-        setTimeout(() => { if (currentPlayer === aiColor) askOracle(); }, 1500); 
-    } else {
-        checkTurn(); 
-    }
+    checkTurn(); // این تابع خودش تشخیص می‌دهد که اگر نوبت ربات است، اوراکل را صدا بزند
 }
 initBoard(); renderBoard();
 </script>
