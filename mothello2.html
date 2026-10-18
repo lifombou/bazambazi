@@ -598,28 +598,34 @@ async function initOracleWorker() {
         
         oracleWorker.onmessage = function(event) {
             const responseData = event.data;
-            let move = null;
+            let moveIndex = -1;
 
+            // 🔥 اصلاح اصلی: اوراکل مختصات را به صورت شماره خانه (0 تا 35) برمی‌گرداند
             if (Array.isArray(responseData)) {
-                move = responseData;
-            } else if (responseData && Array.isArray(responseData.move)) {
-                move = responseData.move;
+                moveIndex = parseInt(responseData[0]); // اولین عضو آرایه شماره خانه است
+            } else if (typeof responseData === 'number') {
+                moveIndex = responseData;
             } else if (responseData && responseData.move !== undefined) {
-                move = responseData.move;
+                if (Array.isArray(responseData.move)) {
+                    moveIndex = parseInt(responseData.move[0]);
+                } else {
+                    moveIndex = parseInt(responseData.move);
+                }
             }
 
-            if (move && move.length === 2) {
-                const r = move[0], c = move[1];
-                // ربات حرکت می‌کند
+            if (moveIndex >= 0 && moveIndex < SIZE * SIZE) {
+                const r = Math.floor(moveIndex / SIZE);
+                const c = moveIndex % SIZE;
+                
                 board = simulateMove(board, r, c, aiColor);
-                lastBotMove = { r, c }; // ذخیره حرکت ربات برای خط‌چین زرد
-                currentPlayer = myColor; // نوبت به شما برمی‌گردد
+                lastBotMove = { r, c }; // خط‌چین زرد
+                currentPlayer = myColor; // برگشت نوبت به شما
                 
                 isOracleThinking = false;
                 renderBoard();
                 checkTurn();
             } else {
-                // ربات حرکتی ندارد (پاس)
+                // ربات حرکتی ندارد
                 isOracleThinking = false;
                 lastBotMove = null;
                 currentPlayer = myColor;
@@ -665,12 +671,12 @@ async function askOracle() {
         }
     }
     
-    // ارسال وضعیت به اوراکل برای رنگ ربات
+    // 🔥 اصلاح دوم: ارسال رنگ ربات به اوراکل (نه رنگ شما)
     oracleWorker.postMessage({
         request: {
             black: blackBits.toString(),
             white: whiteBits.toString(),
-            turn: aiColor === BLACK ? 0 : 1 // 0 برای سیاه، 1 برای سفید
+            turn: aiColor 
         }
     });
 }
