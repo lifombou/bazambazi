@@ -175,7 +175,9 @@
 </div>
 
 <script>
-// کدهای امنیتی شما
+// ============================================================
+// کدهای امنیتی شما (بدون تغییر)
+// ============================================================
 (function(){
   'use strict';
   const API_BASE   = 'https://fra.cloud.appwrite.io/v1';
@@ -294,33 +296,42 @@ let aiColor = WHITE;
 let isBotThinking = false;
 let lastBotMove = null; 
 let moveHistory = []; 
-let oracleTimeout = null;
 
 // ============================================================
 // موتور اول: اتصال به اوراکل (برای سفید)
 // ============================================================
 let oracleWorker = null;
 
-async function initOracle() {
+function initOracle() {
     if (oracleWorker) return;
     try {
-        // دانلود فایل ورکر به صورت متن برای جلوگیری از خطای CORS
-        const response = await fetch('assets/worker.js');
-        let code = await response.text();
+        // 🔥 لود کردن مستقیم به عنوان ماژول (بدون Blob) برای جلوگیری از خطای import
+        oracleWorker = new Worker('assets/worker.js', { type: 'module' });
         
-        // جایگزینی آدرس مطلق برای فایل wasm تا در حالت Blob کار کند
-        const assetsBaseUrl = new URL('assets/', window.location.href).href;
-        code = code.replace(/import\.meta\.url/g, JSON.stringify(assetsBaseUrl));
+        oracleWorker.onmessage = function(event) {
+            isBotThinking = false;
+            const responseData = event.data;
+            let moveIdx = -1;
+
+            // پردازش پاسخ اوراکل
+            if (Array.isArray(responseData)) {
+                const ret = responseData[1];
+                if (Array.isArray(ret)) moveIdx = ret[0]; // برای سیاه
+                else if (typeof ret === 'number') moveIdx = ret; // برای سفید
+            }
+
+            if (moveIdx >= 0 && moveIdx < SIZE * SIZE) {
+                applyBotMove(moveIdx);
+            } else {
+                document.getElementById('status').textContent = '⚠️ اوراکل پاس داد.';
+                document.getElementById('status').style.color = '#e74c3c';
+                setTimeout(passTurn, 1000);
+            }
+        };
         
-        // ساخت Blob و اجرای آن به عنوان ماژول
-        const blob = new Blob([code], { type: 'application/javascript' });
-        oracleWorker = new Worker(URL.createObjectURL(blob), { type: 'module' });
-        
-        oracleWorker.onmessage = handleOracleResponse;
         oracleWorker.onerror = (e) => {
             console.error("Oracle Error:", e);
-            document.getElementById('status').textContent = 'خطای داخلی اوراکل. پاس داده شد.';
-            document.getElementById('status').style.color = '#e74c3c';
+            document.getElementById('status').textContent = 'خطای داخلی اوراکل.';
             isBotThinking = false;
             setTimeout(passTurn, 1000);
         };
@@ -331,52 +342,16 @@ async function initOracle() {
     }
 }
 
-function handleOracleResponse(event) {
-    clearTimeout(oracleTimeout); 
-    isBotThinking = false;
-    
-    const responseData = event.data;
-    let moveIdx = -1;
-
-    // پردازش دقیق پاسخ اوراکل
-    if (Array.isArray(responseData)) {
-        const ret = responseData[1];
-        if (Array.isArray(ret)) moveIdx = ret[0];
-        else if (typeof ret === 'number') moveIdx = ret;
-    } else if (typeof responseData === 'number') {
-        moveIdx = responseData;
-    }
-
-    if (moveIdx >= 0 && moveIdx < SIZE * SIZE) {
-        applyBotMove(moveIdx);
-    } else {
-        // اگر اوراکل حرکت نداد (پاس)
-        document.getElementById('status').textContent = '⚠️ اوراکل پاس داد.';
-        document.getElementById('status').style.color = '#e74c3c';
-        setTimeout(passTurn, 1000);
-    }
-}
-
-async function askOracle() {
+function askOracle() {
     if (gameOver || isBotThinking) return;
-    await initOracle();
+    initOracle();
     if (!oracleWorker) return;
 
     isBotThinking = true;
     document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
     document.getElementById('status').style.color = '#f1c40f';
 
-    // تایم‌اوت بسیار طولانی برای جلوگیری از پاس دادن در اثر کندی اینترنت
-    clearTimeout(oracleTimeout);
-    oracleTimeout = setTimeout(() => {
-        if (isBotThinking) { 
-            isBotThinking = false; 
-            document.getElementById('status').textContent = 'زمان اوراکل تمام شد.';
-            setTimeout(passTurn, 1000); 
-        }
-    }, 15000); // 15 ثانیه
-
-    oracleWorker.postMessage([0, moveHistory]);
+    oracleWorker.postMessage(moveHistory);
 }
 
 // ============================================================
@@ -404,9 +379,8 @@ const alphaBetaWorkerCode = `
         let emptyCount = 0;
         for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) if(board[r][c] === EMPTY) emptyCount++;
         
-        // عمق بالاتر برای هوشمندی بیشتر
-        let depth = 7;
-        if (emptyCount < 14) depth = 11;
+        let depth = 8;
+        if (emptyCount < 14) depth = 12;
         
         const bestMove = findBestMove(board, player, depth);
         self.postMessage({ move: bestMove });
@@ -467,15 +441,40 @@ const alphaBetaWorkerCode = `
     function evaluateBoard(board, player) {
         let score = 0;
         const opp = player === BLACK ? WHITE : BLACK;
+        
+        // Positional weights
         for (let r = 0; r < SIZE; r++) {
             for (let c = 0; c < SIZE; c++) {
                 if (board[r][c] === player) score += WEIGHTS[r][c];
                 else if (board[r][c] === opp) score -= WEIGHTS[r][c];
             }
         }
+        
+        // Mobility
         const myMoves = getValidMoves(board, player).length;
         const oppMoves = getValidMoves(board, opp).length;
-        score += (myMoves - oppMoves) * 15;
+        score += (myMoves - oppMoves) * 25;
+        
+        // Frontier discs penalty
+        let myFrontier = 0, oppFrontier = 0;
+        for (let r = 0; r < SIZE; r++) {
+            for (let c = 0; c < SIZE; c++) {
+                if (board[r][c] === EMPTY) continue;
+                let isFrontier = false;
+                for (const [dr, dc] of DIRS) {
+                    const nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === EMPTY) {
+                        isFrontier = true; break;
+                    }
+                }
+                if (isFrontier) {
+                    if (board[r][c] === player) myFrontier++;
+                    else oppFrontier++;
+                }
+            }
+        }
+        score -= (myFrontier - oppFrontier) * 15;
+        
         return score;
     }
 
@@ -555,6 +554,7 @@ function askAlphaBeta() {
 // منطق مشترک بازی
 // ============================================================
 function applyBotMove(moveIdx) {
+    if (moveIdx < 0 || moveIdx >= SIZE * SIZE) return;
     const r = Math.floor(moveIdx / SIZE);
     const c = moveIdx % SIZE;
     
