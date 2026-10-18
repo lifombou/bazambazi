@@ -121,7 +121,7 @@
         /* ================= GATE STYLES ================= */
         body.locked{overflow:hidden;}
         body.locked #app{display:none !important;}
-        #gate{ position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center; padding:20px; background:radial-gradient(1200px 600px at 50% -10%, #26324a, #141a24 60%, #0f131a 100%); font-family:Tahoma,sans-serif; direction:rtl; }
+        #gate{ position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center; padding:20px; background:radial-gradient(1200px 600px at 50% -10%, #26324a, #141a24 60%, #0f131a 100%); direction:rtl; }
         body:not(.locked) #gate{display:none;}
         .gate-card{ width:100%; max-width:420px; background:#242c3d; border-radius:16px; padding:28px 24px 22px; box-shadow:0 20px 60px rgba(0,0,0,.6); text-align:center; color:#e8edf5; }
         .gate-card h2{ margin:0 0 10px; font-size:20px; background:linear-gradient(90deg,#7fb4ff,#4a90e2,#a5c9ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
@@ -175,7 +175,7 @@
 </div>
 
 <script>
-// کدهای امنیتی شما (بدون تغییر)
+// کدهای امنیتی شما
 (function(){
   'use strict';
   const API_BASE   = 'https://fra.cloud.appwrite.io/v1';
@@ -301,27 +301,44 @@ let oracleTimeout = null;
 // ============================================================
 let oracleWorker = null;
 
-function initOracle() {
+async function initOracle() {
     if (oracleWorker) return;
     try {
-        // بارگذاری ورکر به صورت ماژول
-        oracleWorker = new Worker('assets/worker.js', { type: 'module' });
+        // دانلود فایل ورکر به صورت متن برای جلوگیری از خطای CORS
+        const response = await fetch('assets/worker.js');
+        let code = await response.text();
+        
+        // جایگزینی آدرس مطلق برای فایل wasm تا در حالت Blob کار کند
+        const assetsBaseUrl = new URL('assets/', window.location.href).href;
+        code = code.replace(/import\.meta\.url/g, JSON.stringify(assetsBaseUrl));
+        
+        // ساخت Blob و اجرای آن به عنوان ماژول
+        const blob = new Blob([code], { type: 'application/javascript' });
+        oracleWorker = new Worker(URL.createObjectURL(blob), { type: 'module' });
+        
         oracleWorker.onmessage = handleOracleResponse;
         oracleWorker.onerror = (e) => {
             console.error("Oracle Error:", e);
-            document.getElementById('status').textContent = 'خطای اوراکل.';
+            document.getElementById('status').textContent = 'خطای داخلی اوراکل. پاس داده شد.';
+            document.getElementById('status').style.color = '#e74c3c';
             isBotThinking = false;
+            setTimeout(passTurn, 1000);
         };
-    } catch(e) { console.error(e); }
+    } catch(e) { 
+        console.error("Failed to load Oracle Worker:", e); 
+        document.getElementById('status').textContent = 'خطا در بارگذاری اوراکل.';
+        isBotThinking = false;
+    }
 }
 
 function handleOracleResponse(event) {
     clearTimeout(oracleTimeout); 
     isBotThinking = false;
+    
     const responseData = event.data;
     let moveIdx = -1;
 
-    // پردازش پاسخ اوراکل
+    // پردازش دقیق پاسخ اوراکل
     if (Array.isArray(responseData)) {
         const ret = responseData[1];
         if (Array.isArray(ret)) moveIdx = ret[0];
@@ -333,33 +350,38 @@ function handleOracleResponse(event) {
     if (moveIdx >= 0 && moveIdx < SIZE * SIZE) {
         applyBotMove(moveIdx);
     } else {
-        // اگر اوراکل پاس داد (یعنی حرکتی نیست)
-        document.getElementById('status').textContent = '⚠️ ربات پاس داد.';
+        // اگر اوراکل حرکت نداد (پاس)
+        document.getElementById('status').textContent = '⚠️ اوراکل پاس داد.';
         document.getElementById('status').style.color = '#e74c3c';
-        isBotThinking = false;
         setTimeout(passTurn, 1000);
     }
 }
 
-function askOracle() {
+async function askOracle() {
     if (gameOver || isBotThinking) return;
-    initOracle();
+    await initOracle();
+    if (!oracleWorker) return;
+
     isBotThinking = true;
     document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
     document.getElementById('status').style.color = '#f1c40f';
 
+    // تایم‌اوت بسیار طولانی برای جلوگیری از پاس دادن در اثر کندی اینترنت
     clearTimeout(oracleTimeout);
     oracleTimeout = setTimeout(() => {
-        if (isBotThinking) { isBotThinking = false; passTurn(); }
-    }, 5000);
+        if (isBotThinking) { 
+            isBotThinking = false; 
+            document.getElementById('status').textContent = 'زمان اوراکل تمام شد.';
+            setTimeout(passTurn, 1000); 
+        }
+    }, 15000); // 15 ثانیه
 
-    oracleWorker.postMessage(moveHistory);
+    oracleWorker.postMessage([0, moveHistory]);
 }
 
 // ============================================================
 // موتور دوم: هوش مصنوعی داخلی آلفا-بتا (برای سیاه)
 // ============================================================
-// این کد را در یک Web Worker مخفی قرار می‌دهیم تا صفحه هنگ نکند
 const alphaBetaWorkerCode = `
     const SIZE = 6;
     const EMPTY = 0, BLACK = 1, WHITE = 2;
@@ -372,17 +394,19 @@ const alphaBetaWorkerCode = `
         [-80, -40,  -5,  -5, -40, -80],
         [120, -80,  20,  20, -80, 120]
     ];
+    let tt = new Map();
 
     self.onmessage = function(e) {
+        tt.clear();
         const board = e.data.board;
         const player = e.data.player;
         
         let emptyCount = 0;
         for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) if(board[r][c] === EMPTY) emptyCount++;
         
-        // عمق جستجو: در وسط بازی 6، در انتهای بازی 10
-        let depth = 6;
-        if (emptyCount < 14) depth = 10;
+        // عمق بالاتر برای هوشمندی بیشتر
+        let depth = 7;
+        if (emptyCount < 14) depth = 11;
         
         const bestMove = findBestMove(board, player, depth);
         self.postMessage({ move: bestMove });
@@ -410,6 +434,12 @@ const alphaBetaWorkerCode = `
     }
 
     function negamax(board, depth, alpha, beta, player, passed) {
+        const boardKey = boardToString(board) + player;
+        if (tt.has(boardKey)) {
+            const entry = tt.get(boardKey);
+            if (entry.depth >= depth) return entry.value;
+        }
+
         const validMoves = getValidMoves(board, player);
         const opp = player === BLACK ? WHITE : BLACK;
 
@@ -430,6 +460,7 @@ const alphaBetaWorkerCode = `
             alpha = Math.max(alpha, evalScore);
             if (alpha >= beta) break;
         }
+        tt.set(boardKey, { depth: depth, value: maxEval });
         return maxEval;
     }
 
@@ -446,6 +477,12 @@ const alphaBetaWorkerCode = `
         const oppMoves = getValidMoves(board, opp).length;
         score += (myMoves - oppMoves) * 15;
         return score;
+    }
+
+    function boardToString(board) {
+        let s = '';
+        for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) s += board[r][c];
+        return s;
     }
 
     function getValidMoves(board, player) {
