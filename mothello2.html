@@ -589,7 +589,7 @@ async function initOracleWorker() {
         document.getElementById('status').textContent = 'در حال بارگذاری موتور ربات...';
         
         // ۱. دریافت کدهای فایل js
-        const jsUrl = new URL('assets/o66.worker-BZ6snYWF.js', window.location.href).href;
+        const jsUrl = new URL('assets/worker.js', window.location.href).href;
         const response = await fetch(jsUrl);
         
         if (!response.ok) throw new Error('فایل Worker پیدا نشد. مسیر را چک کنید.');
