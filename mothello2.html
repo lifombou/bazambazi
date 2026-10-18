@@ -564,7 +564,7 @@
 })();
 </script>
 
-<!-- ===================== منطق اصلی بازی اتللو (اتصال به اوراکل) ===================== -->
+<!-- ===================== منطق اصلی بازی (با لودر امن Blob) ===================== -->
 <script>
 const SIZE = 6;
 const EMPTY = 0, BLACK = 1, WHITE = 2;
@@ -579,54 +579,82 @@ let isOracleThinking = false;
 let bestSuggestedMove = null;
 let lastMove = null;
 
-// ============================================================
-// ⚠️ مسیر فایل Worker با توجه به اینکه در پوشه assets است اصلاح شد
-// ============================================================
 let oracleWorker = null;
 
-function initOracleWorker() {
+// تکنیک حرفه‌ای: دانلود فایل به صورت متن و ساخت Blob برای دور زدن خطاهای CORS گیت‌هاب
+async function initOracleWorker() {
     if (oracleWorker) return;
     
-    // مسیر دقیق فایل در پوشه assets
-    oracleWorker = new Worker('assets/o66.worker-BZ6snYWF.js');
+    try {
+        document.getElementById('status').textContent = 'در حال بارگذاری موتور ربات...';
+        
+        // ۱. دریافت کدهای فایل js
+        const jsUrl = new URL('assets/o66.worker-BZ6snYWF.js', window.location.href).href;
+        const response = await fetch(jsUrl);
+        
+        if (!response.ok) throw new Error('فایل Worker پیدا نشد. مسیر را چک کنید.');
+        
+        let workerCode = await response.text();
+        
+        // ۲. اصلاح مسیر فایل wasm داخل کد (چون از Blob اجرا می‌شود، مسیر نسبی خراب می‌شود)
+        const wasmUrl = new URL('assets/o66_bg-Czr1ZcfQ.wasm', window.location.href).href;
+        workerCode = workerCode.replace(/['"]o66_bg-Czr1ZcfQ\.wasm['"]/g, `'${wasmUrl}'`);
+        
+        // ۳. ساخت Blob و راه‌اندازی Worker
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+        oracleWorker = new Worker(blobUrl);
+        
+        // ۴. تنظیمات دریافت پاسخ
+        oracleWorker.onmessage = function(event) {
+            const responseData = event.data;
+            let move = null;
 
-    oracleWorker.onerror = function(e) {
-        console.error("Worker Error:", e);
-        document.getElementById('status').textContent = 'خطا در بارگذاری موتور ربات.';
+            if (Array.isArray(responseData)) {
+                move = responseData;
+            } else if (responseData && Array.isArray(responseData.move)) {
+                move = responseData.move;
+            } else if (responseData && responseData.move !== undefined) {
+                move = responseData.move;
+            }
+
+            if (move && move.length === 2) {
+                bestSuggestedMove = { r: move[0], c: move[1] };
+                isOracleThinking = false;
+                renderBoard();
+                document.getElementById('status').textContent = 'حرکت پیشنهادی سبز رنگ را کلیک کنید.';
+                document.getElementById('status').style.color = '#f1c40f';
+            } else {
+                isOracleThinking = false;
+                bestSuggestedMove = null;
+                document.getElementById('status').textContent = 'شما حرکتی ندارید!';
+                setTimeout(passTurn, 1000);
+            }
+        };
+
+        oracleWorker.onerror = function(e) {
+            console.error("Worker Error:", e);
+            document.getElementById('status').textContent = 'خطا در اجرای موتور ربات.';
+            document.getElementById('status').style.color = '#e74c3c';
+            oracleWorker = null;
+        };
+        
+    } catch (err) {
+        console.error(err);
+        document.getElementById('status').textContent = 'خطا در دانلود فایل‌های موتور.';
         document.getElementById('status').style.color = '#e74c3c';
-    };
-
-    oracleWorker.onmessage = function(event) {
-        const response = event.data;
-        let move = null;
-
-        if (Array.isArray(response)) {
-            move = response;
-        } else if (response && Array.isArray(response.move)) {
-            move = response.move;
-        } else if (response && response.move !== undefined) {
-            move = response.move;
-        }
-
-        if (move && move.length === 2) {
-            bestSuggestedMove = { r: move[0], c: move[1] };
-            isOracleThinking = false;
-            renderBoard();
-            document.getElementById('status').textContent = 'حرکت پیشنهادی سبز رنگ را کلیک کنید.';
-            document.getElementById('status').style.color = '#f1c40f';
-        } else {
-            isOracleThinking = false;
-            bestSuggestedMove = null;
-            document.getElementById('status').textContent = 'شما حرکتی ندارید!';
-            setTimeout(passTurn, 1000);
-        }
-    };
+        oracleWorker = null;
+    }
 }
 
-function askOracle() {
+async function askOracle() {
     if (gameOver) return;
-    initOracleWorker();
-    if (!oracleWorker) return;
+    
+    // اگر ورکر آماده نیست، بسازش
+    if (!oracleWorker) {
+        await initOracleWorker();
+    }
+    if (!oracleWorker) return; // اگر خطا داد، بیخیال شو
 
     isOracleThinking = true;
     bestSuggestedMove = null;
