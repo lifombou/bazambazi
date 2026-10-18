@@ -482,7 +482,7 @@
 
 <script>
 // ============================================================
-// منطق بازی و اتصال به اوراکل (دقیقاً مطابق سورس رسمی)
+// منطق بازی و اتصال به اوراکل
 // ============================================================
 const SIZE = 6;
 const EMPTY = 0, BLACK = 1, WHITE = 2;
@@ -495,21 +495,21 @@ let myColor = BLACK;
 let aiColor = WHITE;
 let isOracleThinking = false;
 let lastBotMove = null; 
-let moveHistory = []; // آرایه‌ای از ایندکس‌ها (0-35)
+let moveHistory = []; 
 
 let oracleWorker = null;
+let isWorkerReady = false;
 let isWaitingForOracle = false;
 
 function initOracleWorker() {
     if (oracleWorker) return;
     
     try {
-        document.getElementById('status').textContent = 'در حال اتصال به اوراکل...';
-        // لود کردن فایل ورکر به عنوان ماژول
+        document.getElementById('status').textContent = 'در حال اتصال به موتور اوراکل...';
         oracleWorker = new Worker('assets/worker.js', { type: 'module' });
         
         oracleWorker.onmessage = function(event) {
-            if (!isWaitingForOracle) return; // اگر درخواستی ندادیم، نادیده بگیر
+            if (!isWaitingForOracle) return;
             
             const [moves, ret] = event.data;
             isWaitingForOracle = false;
@@ -517,12 +517,10 @@ function initOracleWorker() {
 
             let moveIdx = -1;
 
-            // 🔥 پردازش دقیق پاسخ اوراکل بر اساس سورس کد رسمی
+            // پردازش دقیق پاسخ اوراکل
             if (Array.isArray(ret)) {
-                // نوبت سیاه: ret یک آرایه است [move, value]
                 moveIdx = ret[0];
             } else if (typeof ret === 'number') {
-                // نوبت سفید: ret یک عدد است
                 moveIdx = ret;
             }
 
@@ -530,9 +528,8 @@ function initOracleWorker() {
                 const r = Math.floor(moveIdx / SIZE);
                 const c = moveIdx % SIZE;
                 
-                // اعمال حرکت
                 board = simulateMove(board, r, c, aiColor);
-                moveHistory.push(moveIdx); // ثبت ایندکس حرکت
+                moveHistory.push(moveIdx); 
                 lastBotMove = { r, c };
                 currentPlayer = myColor;
                 
@@ -544,10 +541,8 @@ function initOracleWorker() {
                     if (!gameOver) checkTurn();
                 }, 800);
             } else {
-                // moveIdx === -1 یعنی پاس
                 document.getElementById('status').textContent = '⚠️ اوراکل پاس داد.';
                 document.getElementById('status').style.color = '#e74c3c';
-                // مدیریت پاس...
                 passTurn();
             }
         };
@@ -560,6 +555,9 @@ function initOracleWorker() {
             document.getElementById('status').style.color = '#e74c3c';
         };
         
+        // به موتور زمان می‌دهیم تا فایل WASM را لود کند
+        setTimeout(() => { isWorkerReady = true; }, 2000);
+
     } catch (err) {
         isOracleThinking = false;
         document.getElementById('status').textContent = '⚠️ خطا در بارگذاری فایل.';
@@ -572,8 +570,10 @@ function askOracle() {
     
     if (!oracleWorker) {
         initOracleWorker();
-        // صبر برای لود شدن
-        setTimeout(() => { if (currentPlayer === aiColor) askOracle(); }, 1000);
+    }
+    if (!isWorkerReady) {
+        document.getElementById('status').textContent = 'در حال آماده‌سازی موتور اوراکل...';
+        setTimeout(askOracle, 500);
         return;
     }
 
@@ -582,7 +582,6 @@ function askOracle() {
     document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
     document.getElementById('status').style.color = '#f1c40f';
 
-    // 🔥 ارسال فقط و فقط آرایه تاریخچه حرکات (مطابق سورس رسمی)
     oracleWorker.postMessage(moveHistory);
 }
 
@@ -710,7 +709,6 @@ function handleMove(r, c) {
     if (gameOver || isOracleThinking || currentPlayer !== myColor) return;
     
     board = simulateMove(board, r, c, currentPlayer);
-    // 🔥 ثبت ایندکس حرکت (col + row * 6)
     moveHistory.push(c + r * SIZE);
     lastBotMove = null; 
     
