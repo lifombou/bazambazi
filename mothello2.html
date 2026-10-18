@@ -482,7 +482,7 @@
 
 <script>
 // ============================================================
-// منطق بازی و اتصال به اوراکل
+// منطق بازی و اتصال به اوراکل (نسخه نهایی)
 // ============================================================
 const SIZE = 6;
 const EMPTY = 0, BLACK = 1, WHITE = 2;
@@ -500,28 +500,31 @@ let moveHistory = [];
 let oracleWorker = null;
 let isWorkerReady = false;
 let isWaitingForOracle = false;
+let oracleTimeout = null;
 
 function initOracleWorker() {
     if (oracleWorker) return;
     
     try {
         document.getElementById('status').textContent = 'در حال اتصال به موتور اوراکل...';
+        // لود کردن فایل ورکر به عنوان ماژول
         oracleWorker = new Worker('assets/worker.js', { type: 'module' });
         
         oracleWorker.onmessage = function(event) {
-            if (!isWaitingForOracle) return;
+            if (!isWaitingForOracle) return; // اگر درخواستی نداده بودیم، نادیده بگیر
             
-            const [moves, ret] = event.data;
+            clearTimeout(oracleTimeout); // تایم‌اوت را پاک کن چون پاسخ آمد
             isWaitingForOracle = false;
             isOracleThinking = false;
 
+            const responseData = event.data;
             let moveIdx = -1;
 
-            // پردازش دقیق پاسخ اوراکل
-            if (Array.isArray(ret)) {
-                moveIdx = ret[0];
-            } else if (typeof ret === 'number') {
-                moveIdx = ret;
+            // استخراج حرکت از پاسخ
+            if (Array.isArray(responseData)) {
+                const ret = responseData[1]; // [moves, ret]
+                if (Array.isArray(ret)) moveIdx = ret[0];
+                else if (typeof ret === 'number') moveIdx = ret;
             }
 
             if (moveIdx >= 0 && moveIdx < SIZE * SIZE) {
@@ -550,13 +553,16 @@ function initOracleWorker() {
         oracleWorker.onerror = function(e) {
             isOracleThinking = false;
             isWaitingForOracle = false;
+            clearTimeout(oracleTimeout);
             console.error("Oracle Error:", e.message || e);
             document.getElementById('status').textContent = '⚠️ خطای داخلی موتور اوراکل.';
             document.getElementById('status').style.color = '#e74c3c';
+            // اگر ارور داد، بازی را متوقف نکن، پاس بده تا کاربر گیر نکند
+            setTimeout(passTurn, 1000);
         };
         
-        // به موتور زمان می‌دهیم تا فایل WASM را لود کند
-        setTimeout(() => { isWorkerReady = true; }, 2000);
+        // به موتور ۳ ثانیه فرصت می‌دهیم تا فایل WASM را لود کند
+        setTimeout(() => { isWorkerReady = true; }, 3000);
 
     } catch (err) {
         isOracleThinking = false;
@@ -566,14 +572,18 @@ function initOracleWorker() {
 }
 
 function askOracle() {
-    if (gameOver) return;
+    if (gameOver || isOracleThinking) return; // 🔥 جلوگیری از درخواست‌های همزمان
     
     if (!oracleWorker) {
         initOracleWorker();
     }
     if (!isWorkerReady) {
         document.getElementById('status').textContent = 'در حال آماده‌سازی موتور اوراکل...';
-        setTimeout(askOracle, 500);
+        isOracleThinking = true; // قفل می‌کنیم تا درخواست تکراری فرستاده نشود
+        setTimeout(() => {
+            isOracleThinking = false; // باز کردن قفل
+            if (currentPlayer === aiColor && !gameOver) askOracle();
+        }, 500);
         return;
     }
 
@@ -581,6 +591,17 @@ function askOracle() {
     isWaitingForOracle = true;
     document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
     document.getElementById('status').style.color = '#f1c40f';
+
+    // 🔥 تایم‌اوت ۵ ثانیه‌ای برای جلوگیری از قفل شدن بازی
+    clearTimeout(oracleTimeout);
+    oracleTimeout = setTimeout(() => {
+        if (isWaitingForOracle) {
+            isWaitingForOracle = false;
+            isOracleThinking = false;
+            document.getElementById('status').textContent = 'زمان پاسخ اوراکل به پایان رسید.';
+            passTurn();
+        }
+    }, 5000);
 
     oracleWorker.postMessage(moveHistory);
 }
@@ -644,6 +665,7 @@ function checkTurn() {
     
     if (validMoves.length === 0) {
         const otherPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+        // 🔥 اگر هیچ‌کدام حرکت ندارند، بازی تمام است (جلوگیری از حلقه بی‌پایان)
         if (getValidMoves(board, otherPlayer).length === 0) {
             gameOver = true;
             const { black, white } = countPieces(board);
@@ -728,7 +750,20 @@ function startGame(color) {
     lastBotMove = null; 
     
     renderBoard(); 
-    checkTurn(); 
+
+    // 🔥 اگر ربات سیاه است (شما سفید هستید)، باید اولین حرکت را انجام دهد
+    if (currentPlayer === aiColor) {
+        document.getElementById('status').textContent = 'آماده‌سازی اوراکل...';
+        initOracleWorker(); // ورکر را زودتر لود می‌کنیم
+        // ۳.۵ ثانیه صبر می‌کنیم تا فایل WASM کاملاً لود شود، سپس اولین حرکت را می‌خواهیم
+        setTimeout(() => {
+            if (!gameOver && currentPlayer === aiColor) {
+                askOracle();
+            }
+        }, 3500);
+    } else {
+        checkTurn(); 
+    }
 }
 initBoard(); renderBoard();
 </script>
