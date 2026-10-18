@@ -568,7 +568,7 @@ let gameOver = false;
 let myColor = BLACK;
 let aiColor = WHITE;
 let isOracleThinking = false;
-let lastBotMove = null; // فقط برای هایلایت کردن حرکت ربات
+let lastBotMove = null; 
 
 let oracleWorker = null;
 
@@ -585,7 +585,6 @@ async function initOracleWorker() {
         
         let workerCode = await response.text();
         
-        // اصلاح آدرس wasm برای جلوگیری از خطای Blob
         const assetsBaseUrl = new URL('assets/', window.location.href).href;
         workerCode = workerCode.replace(/import\.meta\.url/g, JSON.stringify(assetsBaseUrl));
         
@@ -600,9 +599,9 @@ async function initOracleWorker() {
             const responseData = event.data;
             let moveIndex = -1;
 
-            // 🔥 اصلاح اصلی: اوراکل مختصات را به صورت شماره خانه (0 تا 35) برمی‌گرداند
+            // تجزیه پاسخ اوراکل
             if (Array.isArray(responseData)) {
-                moveIndex = parseInt(responseData[0]); // اولین عضو آرایه شماره خانه است
+                moveIndex = parseInt(responseData[0]); 
             } else if (typeof responseData === 'number') {
                 moveIndex = responseData;
             } else if (responseData && responseData.move !== undefined) {
@@ -618,8 +617,8 @@ async function initOracleWorker() {
                 const c = moveIndex % SIZE;
                 
                 board = simulateMove(board, r, c, aiColor);
-                lastBotMove = { r, c }; // خط‌چین زرد
-                currentPlayer = myColor; // برگشت نوبت به شما
+                lastBotMove = { r, c };
+                currentPlayer = myColor;
                 
                 isOracleThinking = false;
                 renderBoard();
@@ -636,17 +635,35 @@ async function initOracleWorker() {
 
         oracleWorker.onerror = function(e) {
             console.error("Worker Error:", e);
-            document.getElementById('status').textContent = 'خطا در اجرای موتور ربات.';
+            document.getElementById('status').textContent = 'کرش در موتور ربات! در حال اجرای حرکت جایگزین...';
             document.getElementById('status').style.color = '#e74c3c';
-            oracleWorker = null;
+            
+            // 🔥 اگر اوراکل کرش کرد، از یک حرکت ساده استفاده کن تا بازی قفل نشود
+            fallbackMove();
         };
         
     } catch (err) {
         console.error(err);
-        document.getElementById('status').textContent = err.message;
+        document.getElementById('status').textContent = 'خطا در بارگذاری. حرکت جایگزین اجرا شد.';
         document.getElementById('status').style.color = '#e74c3c';
-        oracleWorker = null;
+        fallbackMove();
     }
+}
+
+function fallbackMove() {
+    if (gameOver) return;
+    const validMoves = getValidMoves(board, aiColor);
+    if (validMoves.length > 0) {
+        const [r, c] = validMoves[Math.floor(Math.random() * validMoves.length)];
+        board = simulateMove(board, r, c, aiColor);
+        lastBotMove = { r, c };
+        currentPlayer = myColor;
+    } else {
+        currentPlayer = myColor;
+    }
+    isOracleThinking = false;
+    renderBoard();
+    checkTurn();
 }
 
 async function askOracle() {
@@ -655,7 +672,7 @@ async function askOracle() {
     if (!oracleWorker) {
         await initOracleWorker();
     }
-    if (!oracleWorker) return;
+    if (!oracleWorker) return; // اگر ساخت Worker شکست خورد، متوقف شو
 
     isOracleThinking = true;
     document.getElementById('status').textContent = 'ربات اوراکل در حال محاسبه...';
@@ -671,12 +688,12 @@ async function askOracle() {
         }
     }
     
-    // 🔥 اصلاح دوم: ارسال رنگ ربات به اوراکل (نه رنگ شما)
+    // 🔥 اصلاح اصلی: موتور اوراکل به جای 1 و 2، اعداد 0 (برای سیاه) و 1 (برای سفید) را می‌خواهد
     oracleWorker.postMessage({
         request: {
             black: blackBits.toString(),
             white: whiteBits.toString(),
-            turn: aiColor 
+            turn: aiColor - 1 
         }
     });
 }
@@ -758,10 +775,10 @@ function checkTurn() {
     if (currentPlayer === myColor) {
         document.getElementById('status').textContent = 'نوبت شماست. یک خانه را انتخاب کنید.';
         document.getElementById('status').style.color = '#f1c40f';
-        renderBoard(); // اجازه کلیک روی همه حرکات
+        renderBoard(); 
     } else {
-        renderBoard(); // قفل کردن صفحه
-        askOracle(); // ربات فکر کند
+        renderBoard(); 
+        askOracle(); 
     }
 }
 function renderBoard() {
@@ -777,16 +794,15 @@ function renderBoard() {
             if (board[r][c] === BLACK) cell.classList.add('black'); 
             else if (board[r][c] === WHITE) cell.classList.add('white');
             
-            // فقط حرکت ربات خط‌چین زرد می‌گیرد
             if (lastBotMove && lastBotMove.r === r && lastBotMove.c === c) {
                 cell.classList.add('last-bot-move');
             }
             
             if (!gameOver && validMoves.some(([vr, vc]) => vr === r && vc === c)) {
                 if (currentPlayer === myColor) {
-                    cell.onclick = () => handleMove(r, c); // کاربر آزاد است هر خانه‌ای را بزند
+                    cell.onclick = () => handleMove(r, c); 
                 } else {
-                    cell.classList.add('disabled'); // در نوبت ربات، صفحه قفل است
+                    cell.classList.add('disabled'); 
                 }
             } else {
                 cell.classList.add('disabled');
@@ -805,9 +821,9 @@ function handleMove(r, c) {
     if (gameOver || isOracleThinking || currentPlayer !== myColor) return;
     
     board = simulateMove(board, r, c, currentPlayer);
-    lastBotMove = null; // وقتی کاربر بازی می‌کند، خط‌چین ربات پاک می‌شود
+    lastBotMove = null; 
     
-    currentPlayer = aiColor; // نوبت به ربات می‌رسد
+    currentPlayer = aiColor; 
     renderBoard(); 
     checkTurn();
 }
