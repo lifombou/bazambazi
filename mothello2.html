@@ -636,7 +636,7 @@ async function initOracleWorker() {
                 isOracleThinking = false;
                 renderBoard();
                 
-                // 🔥 نمایش موفقیت اوراکل
+                // 🔥 نمایش موفقیت اوراکل با رنگ سبز
                 document.getElementById('status').textContent = '✅ حرکت توسط اوراکل انجام شد.';
                 document.getElementById('status').style.color = '#2ecc71';
                 
@@ -648,7 +648,6 @@ async function initOracleWorker() {
 
         oracleWorker.onerror = function(e) {
             clearTimeout(oracleTimeout);
-            // 🔥 نمایش خطای اوراکل در کنسول و در صفحه
             console.error("Oracle Error:", e.message || e);
             executeFallback('خطای داخلی موتور');
         };
@@ -667,6 +666,7 @@ function executeFallback(reason) {
         let bestMove = validMoves[0];
         let bestScore = -Infinity;
         
+        // استفاده از مینی‌مکس برای سیستم پشتیبان
         for (const [r, c] of validMoves) {
             const nb = simulateMove(board, r, c, aiColor);
             const score = minimax(nb, 3, false, aiColor);
@@ -681,8 +681,8 @@ function executeFallback(reason) {
         lastBotMove = { r, c };
         currentPlayer = myColor;
         
-        // 🔥 نمایش استفاده از سیستم پشتیبان با رنگ قرمز
-        document.getElementById('status').textContent = `⚠️ ${reason}! حرکت توسط سیستم پشتیبان انجام شد.`;
+        // 🔥 نمایش خطای اوراکل با رنگ قرمز
+        document.getElementById('status').textContent = `⚠️ خطای اوراکل (${reason})! حرکت توسط سیستم پشتیبان انجام شد.`;
         document.getElementById('status').style.color = '#e74c3c';
     } else {
         currentPlayer = myColor;
@@ -768,10 +768,10 @@ async function askOracle() {
         }
     }
     
-    // ارسال آرگومان چهارم (60) برای جلوگیری از خطای Invalid Pass
+    // 🔥 اصلاح کلیدی: ارسال رشته (String) به جای عدد (Number) برای جلوگیری از کرش کردن WASM
     oracleWorker.postMessage([
-        Number(blackBits), 
-        Number(whiteBits), 
+        blackBits.toString(), 
+        whiteBits.toString(), 
         aiColor === BLACK ? 0 : 1, 
         60 
     ]);
