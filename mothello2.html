@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>اتللو ۶×۶ - دستیار هوشمند (اوراکل)</title>
+    <title>اتللو ۶×۶ - ربات اوراکل</title>
     <style>
         /* ================= استایل‌های اصلی بازی ================= */
         body {
@@ -53,6 +53,7 @@
         .cell:hover:not(.disabled) { background-color: #2ecc71; }
         .cell.disabled { cursor: not-allowed; }
 
+        /* استایل مهره‌ها */
         .cell.black::after, .cell.white::after {
             content: '';
             width: 75%;
@@ -65,31 +66,22 @@
         .cell.black::after { background: radial-gradient(circle at 35% 35%, #555, #111); }
         .cell.white::after { background: radial-gradient(circle at 35% 35%, #fff, #ccc); }
 
-        .cell.suggestion::before {
+        /* خط‌چین زرد ONLY برای آخرین حرکت ربات */
+        .cell.last-bot-move::before {
             content: '';
             position: absolute;
             width: 85%;
             height: 85%;
             border-radius: 50%;
-            border: 3px solid #2ecc71;
-            z-index: 3;
+            border: 3px dashed #f1c40f;
+            z-index: 1;
             animation: pulse 1.5s infinite;
         }
 
-        .cell.last-move::before {
-            content: '';
-            position: absolute;
-            width: 85%;
-            height: 85%;
-            border-radius: 50%;
-            border: 2px dashed #f1c40f;
-            z-index: 1;
-        }
-
         @keyframes pulse {
-            0% { transform: scale(0.9); opacity: 0.7; }
+            0% { transform: scale(0.95); opacity: 0.8; }
             50% { transform: scale(1.05); opacity: 1; }
-            100% { transform: scale(0.9); opacity: 0.7; }
+            100% { transform: scale(0.95); opacity: 0.8; }
         }
 
         .panel {
@@ -105,7 +97,7 @@
         .score-black { color: #111; font-weight: bold; background: #eee; padding: 2px 8px; border-radius: 4px; }
         .score-white { color: #111; font-weight: bold; background: #fff; padding: 2px 8px; border-radius: 4px; }
 
-        #status { margin-top: 15px; font-size: 0.9rem; color: #f1c40f; min-height: 25px; text-align: center; padding: 0 10px;}
+        #status { margin-top: 15px; font-size: 1rem; color: #f1c40f; min-height: 25px; text-align: center; padding: 0 10px;}
 
         .overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -239,13 +231,13 @@
 <div id="app">
     <div class="overlay" id="colorOverlay">
         <h2>شما چه رنگی هستید؟</h2>
-        <p>ربات برای این رنگ بهترین حرکت را پیشنهاد می‌دهد. حرکات دوستتان را هم خودتان روی صفحه کلیک کنید.</p>
-        <button onclick="startGame(1)">⚫ من سیاه هستم</button>
+        <p>شما در برابر یک ربات شکست‌ناپذیر بازی می‌کنید. هر حرکتی دوست دارید بزنید!</p>
+        <button onclick="startGame(1)">⚫ من سیاه هستم (شروع‌کننده)</button>
         <button onclick="startGame(2)">⚪ من سفید هستم</button>
     </div>
 
-    <h1>اتللو ۶×۶ - دستیار هوشمند (اوراکل)</h1>
-    <div class="subtitle">حرکات دوستتان را هم روی صفحه کلیک کنید.</div>
+    <h1>اتللو ۶×۶ - ربات اوراکل</h1>
+    <div class="subtitle">خط‌چین زرد، آخرین حرکت ربات را نشان می‌دهد.</div>
 
     <div id="board-container">
         <div id="board"></div>
@@ -564,7 +556,7 @@
 })();
 </script>
 
-<!-- ===================== منطق اصلی بازی (با لودر امن Blob) ===================== -->
+<!-- ===================== منطق اصلی بازی (ربات در برابر انسان) ===================== -->
 <script>
 const SIZE = 6;
 const EMPTY = 0, BLACK = 1, WHITE = 2;
@@ -574,10 +566,9 @@ let board = [];
 let currentPlayer = BLACK;
 let gameOver = false;
 let myColor = BLACK;
-let friendColor = WHITE;
+let aiColor = WHITE;
 let isOracleThinking = false;
-let bestSuggestedMove = null;
-let lastMove = null;
+let lastBotMove = null; // فقط برای هایلایت کردن حرکت ربات
 
 let oracleWorker = null;
 
@@ -594,11 +585,10 @@ async function initOracleWorker() {
         
         let workerCode = await response.text();
         
-        // 🔥 اصلاح جادویی ۱: جایگزینی آدرس پایه برای فایل wasm
+        // اصلاح آدرس wasm برای جلوگیری از خطای Blob
         const assetsBaseUrl = new URL('assets/', window.location.href).href;
         workerCode = workerCode.replace(/import\.meta\.url/g, JSON.stringify(assetsBaseUrl));
         
-        // 🔥 اصلاح جادویی ۲: جایگزینی نام فایل wasm با آدرس کامل (برای اطمینان بیشتر)
         const wasmUrl = new URL('assets/o66_bg-Czr1ZcfQ.wasm', window.location.href).href;
         workerCode = workerCode.replace(/['"]?o66_bg-Czr1ZcfQ\.wasm['"]?/g, JSON.stringify(wasmUrl));
         
@@ -619,16 +609,22 @@ async function initOracleWorker() {
             }
 
             if (move && move.length === 2) {
-                bestSuggestedMove = { r: move[0], c: move[1] };
+                const r = move[0], c = move[1];
+                // ربات حرکت می‌کند
+                board = simulateMove(board, r, c, aiColor);
+                lastBotMove = { r, c }; // ذخیره حرکت ربات برای خط‌چین زرد
+                currentPlayer = myColor; // نوبت به شما برمی‌گردد
+                
                 isOracleThinking = false;
                 renderBoard();
-                document.getElementById('status').textContent = 'حرکت پیشنهادی سبز رنگ را کلیک کنید.';
-                document.getElementById('status').style.color = '#f1c40f';
+                checkTurn();
             } else {
+                // ربات حرکتی ندارد (پاس)
                 isOracleThinking = false;
-                bestSuggestedMove = null;
-                document.getElementById('status').textContent = 'شما حرکتی ندارید!';
-                setTimeout(passTurn, 1000);
+                lastBotMove = null;
+                currentPlayer = myColor;
+                renderBoard();
+                checkTurn();
             }
         };
 
@@ -656,8 +652,7 @@ async function askOracle() {
     if (!oracleWorker) return;
 
     isOracleThinking = true;
-    bestSuggestedMove = null;
-    document.getElementById('status').textContent = 'اوراکل در حال محاسبه بهترین حرکت...';
+    document.getElementById('status').textContent = 'ربات اوراکل در حال محاسبه...';
     document.getElementById('status').style.color = '#f1c40f';
 
     let blackBits = 0n;
@@ -670,11 +665,12 @@ async function askOracle() {
         }
     }
     
+    // ارسال وضعیت به اوراکل برای رنگ ربات
     oracleWorker.postMessage({
         request: {
             black: blackBits.toString(),
             white: whiteBits.toString(),
-            turn: myColor
+            turn: aiColor === BLACK ? 0 : 1 // 0 برای سیاه، 1 برای سفید
         }
     });
 }
@@ -728,11 +724,14 @@ function countPieces(board) {
 }
 function passTurn() {
     currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
-    lastMove = null; renderBoard(); checkTurn();
+    lastBotMove = null; 
+    renderBoard(); 
+    checkTurn();
 }
 function checkTurn() {
     if (gameOver) return;
     const validMoves = getValidMoves(board, currentPlayer);
+    
     if (validMoves.length === 0) {
         const otherPlayer = currentPlayer === BLACK ? WHITE : BLACK;
         if (getValidMoves(board, otherPlayer).length === 0) {
@@ -740,34 +739,52 @@ function checkTurn() {
             const { black, white } = countPieces(board);
             let msg = `بازی تمام شد! سیاه: ${black} - سفید: ${white}. `;
             if (black > white) msg += '⚫ سیاه برنده شد!'; else if (white > black) msg += '⚪ سفید برنده شد!'; else msg += '🤝 مساوی!';
-            document.getElementById('status').textContent = msg; document.getElementById('status').style.color = '#2ecc71';
+            document.getElementById('status').textContent = msg; 
+            document.getElementById('status').style.color = '#2ecc71';
         } else {
             document.getElementById('status').textContent = 'حرکتی وجود ندارد! پاس داده شد.';
             setTimeout(passTurn, 1000);
         }
         return;
     }
-    if (currentPlayer === myColor) { askOracle(); } 
-    else {
-        document.getElementById('status').textContent = 'نوبت دوست شماست (هر خانه‌ای را کلیک کنید).';
-        bestSuggestedMove = null; renderBoard();
+    
+    // نوبت‌بندی
+    if (currentPlayer === myColor) {
+        document.getElementById('status').textContent = 'نوبت شماست. یک خانه را انتخاب کنید.';
+        document.getElementById('status').style.color = '#f1c40f';
+        renderBoard(); // اجازه کلیک روی همه حرکات
+    } else {
+        renderBoard(); // قفل کردن صفحه
+        askOracle(); // ربات فکر کند
     }
 }
 function renderBoard() {
-    const boardEl = document.getElementById('board'); boardEl.innerHTML = '';
+    const boardEl = document.getElementById('board'); 
+    boardEl.innerHTML = '';
     const validMoves = gameOver ? [] : getValidMoves(board, currentPlayer);
+    
     for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
-            const cell = document.createElement('div'); cell.className = 'cell';
-            if (board[r][c] === BLACK) cell.classList.add('black'); else if (board[r][c] === WHITE) cell.classList.add('white');
-            if (lastMove && lastMove.r === r && lastMove.c === c) cell.classList.add('last-move');
-            if (bestSuggestedMove && bestSuggestedMove.r === r && bestSuggestedMove.c === c) cell.classList.add('suggestion');
+            const cell = document.createElement('div'); 
+            cell.className = 'cell';
+            
+            if (board[r][c] === BLACK) cell.classList.add('black'); 
+            else if (board[r][c] === WHITE) cell.classList.add('white');
+            
+            // فقط حرکت ربات خط‌چین زرد می‌گیرد
+            if (lastBotMove && lastBotMove.r === r && lastBotMove.c === c) {
+                cell.classList.add('last-bot-move');
+            }
+            
             if (!gameOver && validMoves.some(([vr, vc]) => vr === r && vc === c)) {
                 if (currentPlayer === myColor) {
-                    if (bestSuggestedMove && bestSuggestedMove.r === r && bestSuggestedMove.c === c) cell.onclick = () => handleMove(r, c);
-                    else cell.classList.add('disabled');
-                } else cell.onclick = () => handleMove(r, c);
-            } else cell.classList.add('disabled');
+                    cell.onclick = () => handleMove(r, c); // کاربر آزاد است هر خانه‌ای را بزند
+                } else {
+                    cell.classList.add('disabled'); // در نوبت ربات، صفحه قفل است
+                }
+            } else {
+                cell.classList.add('disabled');
+            }
             boardEl.appendChild(cell);
         }
     }
@@ -775,20 +792,32 @@ function renderBoard() {
 }
 function updateScore() {
     const { black, white } = countPieces(board);
-    document.getElementById('scoreBlack').textContent = black; document.getElementById('scoreWhite').textContent = white;
+    document.getElementById('scoreBlack').textContent = black; 
+    document.getElementById('scoreWhite').textContent = white;
 }
 function handleMove(r, c) {
-    if (gameOver || isOracleThinking) return;
+    if (gameOver || isOracleThinking || currentPlayer !== myColor) return;
+    
     board = simulateMove(board, r, c, currentPlayer);
-    lastMove = { r, c }; bestSuggestedMove = null;
-    currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
-    renderBoard(); checkTurn();
+    lastBotMove = null; // وقتی کاربر بازی می‌کند، خط‌چین ربات پاک می‌شود
+    
+    currentPlayer = aiColor; // نوبت به ربات می‌رسد
+    renderBoard(); 
+    checkTurn();
 }
 function startGame(color) {
-    myColor = color; friendColor = color === BLACK ? WHITE : BLACK;
+    myColor = color; 
+    aiColor = color === BLACK ? WHITE : BLACK;
     document.getElementById('colorOverlay').style.display = 'none';
-    initBoard(); currentPlayer = BLACK; gameOver = false; isOracleThinking = false; lastMove = null; bestSuggestedMove = null;
-    renderBoard(); checkTurn();
+    
+    initBoard(); 
+    currentPlayer = BLACK; 
+    gameOver = false; 
+    isOracleThinking = false; 
+    lastBotMove = null; 
+    
+    renderBoard(); 
+    checkTurn();
 }
 initBoard(); renderBoard();
 </script>
