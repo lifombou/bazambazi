@@ -260,7 +260,7 @@
 <script>
 (function(){
   'use strict';
-
+  // کدهای امنیتی GATE (بدون تغییر)
   const API_BASE   = 'https://fra.cloud.appwrite.io/v1';
   const PROJECT_ID = '6ac18432000eb4377dad';
   const DB_ID      = '6ac188ac002436bf9010';
@@ -482,20 +482,20 @@
 
 <script>
 // ============================================================
-// اتصال به موتور اوراکل (نسخه نهایی و بدون خطا)
+// منطق بازی و اتصال به اوراکل (اصلاح شده و تضمینی)
 // ============================================================
 const SIZE = 6;
 const EMPTY = 0, BLACK = 1, WHITE = 2;
 const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
 
 let board = [];
-let currentPlayer = BLACK; // همیشه سیاه شروع می‌کند
+let currentPlayer = BLACK;
 let gameOver = false;
 let myColor = BLACK;
 let aiColor = WHITE;
 let isOracleThinking = false;
 let lastBotMove = null; 
-let moveHistory = []; // آرایه‌ای مسطح از مختصات (1-based)
+let moveHistory = []; // آرایه‌ای مسطح با مختصات [col, row]
 
 let oracleWorker = null;
 
@@ -503,16 +503,13 @@ function initOracleWorker() {
     if (oracleWorker) return;
     
     try {
-        document.getElementById('status').textContent = 'در حال اتصال به موتور اوراکل...';
-        
-        // لود کردن فایل ورکر به عنوان یک ماژول (حل مشکل import.meta)
+        document.getElementById('status').textContent = 'در حال اتصال به اوراکل...';
         oracleWorker = new Worker('assets/worker.js', { type: 'module' });
         
         oracleWorker.onmessage = function(event) {
             const responseData = event.data;
             let moveIndex = -1;
 
-            // پردازش خروجی اوراکل
             if (Array.isArray(responseData)) {
                 moveIndex = parseInt(responseData[1]); 
             } else if (typeof responseData === 'number') {
@@ -523,10 +520,10 @@ function initOracleWorker() {
                 const r = Math.floor(moveIndex / SIZE);
                 const c = moveIndex % SIZE;
                 
-                // اعمال حرکت روی صفحه
+                // اعمال حرکت ربات
                 board = simulateMove(board, r, c, aiColor);
-                // ذخیره در تاریخچه با مختصات 1-based (چون اوراکل 1-based است)
-                moveHistory.push(r + 1, c + 1);
+                // 🔥 ثبت مختصات با فرمت [col, row] که اوراکل انتظار دارد
+                moveHistory.push(c + 1, r + 1); 
                 
                 lastBotMove = { r, c };
                 currentPlayer = myColor;
@@ -537,10 +534,7 @@ function initOracleWorker() {
                 document.getElementById('status').textContent = '✅ حرکت توسط اوراکل انجام شد.';
                 document.getElementById('status').style.color = '#2ecc71';
                 
-                setTimeout(() => {
-                    checkTurn(); // رفتن به نوبت کاربر
-                }, 1000);
-                
+                setTimeout(() => { checkTurn(); }, 1000);
             } else {
                 isOracleThinking = false;
                 document.getElementById('status').textContent = '⚠️ اوراکل حرکت نامعتبر برگرداند.';
@@ -567,31 +561,25 @@ function askOracle() {
     
     if (!oracleWorker) {
         initOracleWorker();
-        // صبر برای لود شدن ورکر در اولین حرکت
         setTimeout(() => { if (currentPlayer === aiColor) askOracle(); }, 1500);
         return;
     }
 
     isOracleThinking = true;
-    document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
+    document.getElementById('status').textContent = 'ربات در حال محاسبه...';
     document.getElementById('status').style.color = '#f1c40f';
 
-    // ارسال تاریخچه دقیق به اوراکل. 
-    // [شناسه درخواست, آرایه تاریخچه]
+    // ارسال تاریخچه به اوراکل
     oracleWorker.postMessage([0, moveHistory]);
 }
 
-// ============================================================
-// توابع بازی
-// ============================================================
 function createEmptyBoard() { return Array.from({ length: SIZE }, () => Array(SIZE).fill(EMPTY)); }
 
 function initBoard() {
     board = createEmptyBoard();
-    // چیدمان استاندارد اتللو ۶×۶ (0-based)
+    // چیدمان استاندارد
     board[2][2] = WHITE; board[2][3] = BLACK;
     board[3][2] = BLACK; board[3][3] = WHITE;
-    
     moveHistory = []; 
 }
 
@@ -611,6 +599,7 @@ function getValidMoves(board, player) {
     }
     return moves;
 }
+
 function simulateMove(board, r, c, player) {
     const nb = board.map(row => [...row]);
     nb[r][c] = player;
@@ -625,6 +614,7 @@ function simulateMove(board, r, c, player) {
     }
     return nb;
 }
+
 function countPieces(board) {
     let black = 0, white = 0;
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
@@ -633,6 +623,7 @@ function countPieces(board) {
     }
     return { black, white };
 }
+
 function checkTurn() {
     if (gameOver) return;
     const validMoves = getValidMoves(board, currentPlayer);
@@ -663,6 +654,7 @@ function checkTurn() {
         askOracle(); 
     }
 }
+
 function renderBoard() {
     const boardEl = document.getElementById('board'); 
     boardEl.innerHTML = '';
@@ -695,22 +687,26 @@ function renderBoard() {
     }
     updateScore();
 }
+
 function updateScore() {
     const { black, white } = countPieces(board);
     document.getElementById('scoreBlack').textContent = black; 
     document.getElementById('scoreWhite').textContent = white;
 }
+
 function handleMove(r, c) {
     if (gameOver || isOracleThinking || currentPlayer !== myColor) return;
     
     board = simulateMove(board, r, c, currentPlayer);
-    moveHistory.push(r + 1, c + 1); // ذخیره با مختصات 1-based
-    lastBotMove = null; 
+    // 🔥 ثبت مختصات با فرمت [col, row] که اوراکل انتظار دارد
+    moveHistory.push(c + 1, r + 1); 
     
+    lastBotMove = null; 
     currentPlayer = aiColor; 
     renderBoard(); 
     checkTurn();
 }
+
 function startGame(color) {
     myColor = color; 
     aiColor = color === BLACK ? WHITE : BLACK;
@@ -723,8 +719,9 @@ function startGame(color) {
     lastBotMove = null; 
     
     renderBoard(); 
-    checkTurn(); // این تابع خودش تشخیص می‌دهد که اگر نوبت ربات است، اوراکل را صدا بزند
+    checkTurn(); 
 }
+
 initBoard(); renderBoard();
 </script>
 </body>
