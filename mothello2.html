@@ -46,7 +46,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            cursor: default; /* پیش‌فرض غیرفعال */
+            cursor: default; 
             transition: all 0.2s ease;
             position: relative;
         }
@@ -56,7 +56,7 @@
         /* خانه‌هایی که کاربر می‌تواند در آن‌ها مهره بگذارد */
         .cell.valid-move {
             cursor: pointer;
-            box-shadow: inset 0 0 0 3px #3498db; /* حاشیه آبی برای حرکات مجاز */
+            box-shadow: inset 0 0 0 3px #3498db; /* حاشیه آبی */
         }
         .cell.valid-move:hover {
             background-color: #2ecc71;
@@ -608,11 +608,12 @@ async function initOracleWorker() {
         oracleWorker = new Worker(blobUrl);
         
         oracleWorker.onmessage = function(event) {
-            clearTimeout(oracleTimeout); // لغو تایم‌اوت چون پاسخ آمد
+            clearTimeout(oracleTimeout);
             
             const responseData = event.data;
             let moveIndex = -1;
 
+            // پردازش خروجی اوراکل
             if (Array.isArray(responseData)) {
                 moveIndex = parseInt(responseData[0]); 
             } else if (typeof responseData === 'number') {
@@ -637,7 +638,6 @@ async function initOracleWorker() {
                 renderBoard();
                 checkTurn();
             } else {
-                // اگر اوراکل حرکت نامعتبر داد، حالت پشتیبان اجرا شود
                 executeFallback();
             }
         };
@@ -657,19 +657,30 @@ async function initOracleWorker() {
 }
 
 function executeFallback() {
-    // اگر اوراکل کرش کرد یا پاسخ نداد، این تابع بازی را نجات می‌دهد
+    // اگر اوراکل کرش کرد یا پاسخ نداد، از هوش مصنوعی داخلی استفاده می‌کنیم
     if (gameOver || !isOracleThinking) return;
 
     const validMoves = getValidMoves(board, aiColor);
     if (validMoves.length > 0) {
-        // یک حرکت ساده انتخاب کن (ترجیحاً گوشه‌ها برای هوشمندی بیشتر در حالت پشتیبان)
         let bestMove = validMoves[0];
         let bestScore = -Infinity;
+        
+        // یک مینی‌مکس ساده برای حالت پشتیبان
         for (const [r, c] of validMoves) {
             let score = 0;
             if ((r === 0 || r === 5) && (c === 0 || c === 5)) score += 100;
+            
+            const nb = simulateMove(board, r, c, aiColor);
+            let myCount = 0, oppCount = 0;
+            for(let i=0; i<SIZE; i++) for(let j=0; j<SIZE; j++) {
+                if(nb[i][j] === aiColor) myCount++;
+                if(nb[i][j] === myColor) oppCount++;
+            }
+            score += (myCount - oppCount);
+            
             if (score > bestScore) { bestScore = score; bestMove = [r, c]; }
         }
+        
         const [r, c] = bestMove;
         board = simulateMove(board, r, c, aiColor);
         lastBotMove = { r, c };
@@ -710,20 +721,18 @@ async function askOracle() {
         }
     }
     
-    oracleWorker.postMessage({
-        request: {
-            black: blackBits.toString(),
-            white: whiteBits.toString(),
-            turn: aiColor === BLACK ? 0 : 1 // اصلاح شد: 0 برای سیاه، 1 برای سفید
-        }
-    });
+    // 🔥 اصلاح کلیدی: اوراکل یک آرایه می‌خواهد، نه یک آبجکت
+    oracleWorker.postMessage([
+        Number(blackBits), 
+        Number(whiteBits), 
+        aiColor === BLACK ? 0 : 1 // 0=Black, 1=White
+    ]);
 
-    // تایم‌اوت ۳ ثانیه‌ای: اگر اوراکل پاسخی نداد، حالت پشتیبان اجرا شود
     clearTimeout(oracleTimeout);
     oracleTimeout = setTimeout(() => {
         console.warn("Oracle Timeout! Falling back...");
         executeFallback();
-    }, 3000);
+    }, 3000); // کاهش تایم‌اوت برای واکنش سریع‌تر
 }
 
 // ============================================================
@@ -733,7 +742,6 @@ function createEmptyBoard() { return Array.from({ length: SIZE }, () => Array(SI
 
 function initBoard() {
     board = createEmptyBoard();
-    // چیدمان استاندارد اتللو ۶×۶
     board[2][2] = WHITE; board[2][3] = BLACK;
     board[3][2] = BLACK; board[3][3] = WHITE;
 }
@@ -802,7 +810,6 @@ function checkTurn() {
         return;
     }
     
-    // نوبت‌بندی
     if (currentPlayer === myColor) {
         document.getElementById('status').textContent = 'نوبت شماست. یک خانه را انتخاب کنید.';
         document.getElementById('status').style.color = '#f1c40f';
@@ -825,14 +832,13 @@ function renderBoard() {
             if (board[r][c] === BLACK) cell.classList.add('black'); 
             else if (board[r][c] === WHITE) cell.classList.add('white');
             
-            // خط‌چین زرد فقط برای حرکت ربات
             if (lastBotMove && lastBotMove.r === r && lastBotMove.c === c) {
                 cell.classList.add('last-bot-move');
             }
             
             if (!gameOver && validMoves.some(([vr, vc]) => vr === r && vc === c)) {
                 if (currentPlayer === myColor) {
-                    cell.classList.add('valid-move'); // هایلایت آبی برای حرکات مجاز شما
+                    cell.classList.add('valid-move'); 
                     cell.onclick = () => handleMove(r, c); 
                 } else {
                     cell.classList.add('disabled'); 
