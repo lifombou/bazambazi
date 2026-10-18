@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>اتللو ۶×۶ - ربات اوراکل</title>
-    <!-- این خط ارور 404 مربوط به آیکون را برطرف می‌کند -->
+    <title>اتللو ۶×۶ - اوراکل مطلق</title>
     <link rel="icon" href="data:,">
     <style>
-        /* ================= استایل‌های اصلی بازی ================= */
         body {
             font-family: Tahoma, sans-serif;
             background-color: #1a1a2e;
@@ -55,16 +53,14 @@
         
         .cell.disabled { cursor: not-allowed; }
 
-        /* خانه‌هایی که کاربر می‌تواند در آن‌ها مهره بگذارد */
         .cell.valid-move {
             cursor: pointer;
-            box-shadow: inset 0 0 0 3px #3498db; /* حاشیه آبی */
+            box-shadow: inset 0 0 0 3px #3498db;
         }
         .cell.valid-move:hover {
             background-color: #2ecc71;
         }
 
-        /* استایل مهره‌ها */
         .cell.black::after, .cell.white::after {
             content: '';
             width: 75%;
@@ -78,7 +74,6 @@
         .cell.black::after { background: radial-gradient(circle at 35% 35%, #555, #111); }
         .cell.white::after { background: radial-gradient(circle at 35% 35%, #fff, #ccc); }
 
-        /* خط‌چین زرد ONLY برای آخرین حرکت ربات */
         .cell.last-bot-move::before {
             content: '';
             position: absolute;
@@ -244,13 +239,13 @@
 <div id="app">
     <div class="overlay" id="colorOverlay">
         <h2>شما چه رنگی هستید؟</h2>
-        <p>شما در برابر یک ربات شکست‌ناپذیر بازی می‌کنید. هر حرکتی دوست دارید بزنید!</p>
+        <p>شما در برابر اوراکل مطلق بازی می‌کنید.</p>
         <button onclick="startGame(1)">⚫ من سیاه هستم (شروع‌کننده)</button>
         <button onclick="startGame(2)">⚪ من سفید هستم</button>
     </div>
 
-    <h1>اتللو ۶×۶ - ربات اوراکل</h1>
-    <div class="subtitle">حاشیه آبی = حرکت مجاز | خط‌چین زرد = حرکت ربات</div>
+    <h1>اتللو ۶×۶ - اوراکل مطلق</h1>
+    <div class="subtitle">حاشیه آبی = حرکت مجاز | خط‌چین زرد = حرکت اوراکل</div>
 
     <div id="board-container">
         <div id="board"></div>
@@ -268,7 +263,7 @@
 <script>
 (function(){
   'use strict';
-  // کدهای امنیتی شما (بدون تغییر)
+
   const API_BASE   = 'https://fra.cloud.appwrite.io/v1';
   const PROJECT_ID = '6ac18432000eb4377dad';
   const DB_ID      = '6ac188ac002436bf9010';
@@ -367,35 +362,54 @@
     return await res.json();
   }
 
-  function loadSession(){ try { return JSON.parse(lsGet(SESSION_KEY) || 'null'); } catch(e){ return null; } }
+  function loadSession(){
+    try { return JSON.parse(lsGet(SESSION_KEY) || 'null'); } catch(e){ return null; }
+  }
   function saveSession(s){ lsSet(SESSION_KEY, JSON.stringify(s)); }
   function clearSession(){ lsDel(SESSION_KEY); }
 
-  function isExpired(s){ if(!s) return true; if(s.expiresAt == null) return false; return Date.now() >= s.expiresAt; }
+  function isExpired(s){
+    if(!s) return true;
+    if(s.expiresAt == null) return false;
+    return Date.now() >= s.expiresAt;
+  }
 
   async function checkKicked() {
     const s = loadSession();
     if (!s || isExpired(s) || s.type !== 'user' || !s.password) return false;
+
     try {
       const row = await apiGetRow(s.password).catch(() => null);
       if (!row) return true;
       if (row.banned === true || row.banned === 'true') return true;
+
       const currentVer = String(row.sessionVersion || '1');
       const myVer = String(s.sessionVersion || '1');
       if (currentVer !== myVer) return true;
+
       return false;
-    } catch (e) { return false; }
+    } catch (e) {
+      return false;
+    }
   }
 
   let barTimer = null;
-  function lock(){ document.body.classList.add('locked'); const sb = document.getElementById('sessionBar'); if (sb) sb.classList.add('hidden'); }
-  function unlock(){ document.body.classList.remove('locked'); startSessionBar(); }
+  function lock(){
+    document.body.classList.add('locked');
+    const sb = document.getElementById('sessionBar');
+    if (sb) sb.classList.add('hidden');
+  }
+  function unlock(){
+    document.body.classList.remove('locked');
+    startSessionBar();
+  }
 
   function startSessionBar(){
     const bar  = document.getElementById('sessionBar');
     const info = document.getElementById('sessionInfo');
     if (!bar || !info) return;
     bar.classList.remove('hidden');
+
     function tick(){
       const s = loadSession();
       if(!s || isExpired(s)){ clearSession(); lock(); return; }
@@ -406,7 +420,9 @@
         const m = Math.floor(left / 60000);
         const sec = Math.floor((left % 60000) / 1000);
         txt += ' — مهمان (' + m + ' دقیقه و ' + sec + ' ثانیه)';
-      } else { txt += ' — دسترسی نامحدود'; }
+      } else {
+        txt += ' — دسترسی نامحدود';
+      }
       info.innerHTML = txt;
     }
     tick();
@@ -417,45 +433,96 @@
   async function loginWithPassword(pass){
     const msg = document.getElementById('gateMsg');
     const loginBtn = document.getElementById('gateLogin');
-    msg.classList.remove('ok'); msg.textContent = '';
+    msg.classList.remove('ok');
+    msg.textContent = '';
     if(!pass){ msg.textContent = 'رمز را وارد کنید.'; return; }
-    loginBtn.disabled = true; msg.textContent = 'در حال بررسی...';
+
+    loginBtn.disabled = true;
+    msg.textContent = 'در حال بررسی...';
+
     try {
       let row = await apiGetRow(pass).catch(() => null);
-      if (!row) { msg.textContent = 'رمز عبور اشتباه است.'; loginBtn.disabled = false; return; }
-      if (row.banned === true || row.banned === 'true') { msg.textContent = 'دسترسی شما مسدود شده است.'; loginBtn.disabled = false; return; }
+      if (!row) {
+        msg.textContent = 'رمز عبور اشتباه است.';
+        loginBtn.disabled = false;
+        return;
+      }
+      if (row.banned === true || row.banned === 'true') {
+        msg.textContent = 'دسترسی شما مسدود شده است.';
+        loginBtn.disabled = false;
+        return;
+      }
+
       const fp = await getDeviceFingerprint();
       const storedDevice = (row.deviceId || '').trim();
       const hasLocalAccess = lsGet(ACCESS_PREFIX + pass) === '1';
+
       const allowed = hasLocalAccess || !storedDevice || storedDevice === fp;
-      if (!allowed) { msg.textContent = 'این رمز قبلاً روی دستگاه دیگری استفاده شده است.'; loginBtn.disabled = false; return; }
-      if (DEVICE_LOCK && !storedDevice) { try { await apiUpdateRow(pass, { deviceId: fp }); } catch(e){} }
+
+      if (!allowed) {
+        msg.textContent = 'این رمز قبلاً روی دستگاه دیگری استفاده شده است.';
+        loginBtn.disabled = false;
+        return;
+      }
+
+      if (DEVICE_LOCK && !storedDevice) {
+        try { await apiUpdateRow(pass, { deviceId: fp }); } catch(e){}
+      }
+
       lsSet(ACCESS_PREFIX + pass, '1');
-      const session = { name: 'کاربر', type: 'user', password: pass, sessionVersion: String(row.sessionVersion || '1'), startedAt: Date.now(), expiresAt: (USER_SESSION_HOURS == null) ? null : (Date.now() + USER_SESSION_HOURS * 3600000) };
+
+      const session = {
+        name: 'کاربر', type: 'user', password: pass,
+        sessionVersion: String(row.sessionVersion || '1'),
+        startedAt: Date.now(),
+        expiresAt: (USER_SESSION_HOURS == null) ? null : (Date.now() + USER_SESSION_HOURS * 3600000)
+      };
       saveSession(session);
-      msg.classList.add('ok'); msg.textContent = 'خوش آمدید...';
+      msg.classList.add('ok');
+      msg.textContent = 'خوش آمدید...';
       setTimeout(unlock, 250);
-    } catch (err) { console.error(err); msg.textContent = 'خطای شبکه. دوباره تلاش کن.'; loginBtn.disabled = false; }
+
+    } catch (err) {
+      console.error(err);
+      msg.textContent = 'خطای شبکه. دوباره تلاش کن.';
+      loginBtn.disabled = false;
+    }
   }
 
   async function loginAsGuest(){
-    const msg = document.getElementById('gateGuestMsg'); msg.textContent = '';
+    const msg = document.getElementById('gateGuestMsg');
+    msg.textContent = '';
     try {
       const fp = await getDeviceFingerprint();
       const guestKey = 'guest_' + fp;
       if (GUEST_ONCE_PER_DEVICE) {
         const existing = await apiGetRow(guestKey).catch(() => null);
-        if (existing) { msg.textContent = 'ورود مهمان قبلاً در این دستگاه استفاده شده است.'; return; }
+        if (existing) {
+          msg.textContent = 'ورود مهمان قبلاً در این دستگاه استفاده شده است.';
+          return;
+        }
         try { await apiCreateRow(guestKey, { deviceId: fp }); } catch(e){}
       }
       const now = Date.now();
       saveSession({ name: 'مهمان', type: 'guest', startedAt: now, expiresAt: now + GUEST_HOURS * 3600000 });
       msg.textContent = 'در حال ورود...';
       setTimeout(unlock, 250);
-    } catch (err) { console.error(err); msg.textContent = 'خطای شبکه. دوباره تلاش کن.'; }
+    } catch (err) {
+      console.error(err);
+      msg.textContent = 'خطای شبکه. دوباره تلاش کن.';
+    }
   }
 
-  function logout(){ clearSession(); const p = document.getElementById('gatePass'); if (p) p.value = ''; const m1 = document.getElementById('gateMsg'); if (m1) m1.textContent = ''; const m2 = document.getElementById('gateGuestMsg'); if (m2) m2.textContent = ''; lock(); }
+  function logout(){
+    clearSession();
+    const p = document.getElementById('gatePass');
+    if (p) p.value = '';
+    const m1 = document.getElementById('gateMsg');
+    if (m1) m1.textContent = '';
+    const m2 = document.getElementById('gateGuestMsg');
+    if (m2) m2.textContent = '';
+    lock();
+  }
 
   function initGate(){
     const loginBtn = document.getElementById('gateLogin');
@@ -463,8 +530,13 @@
     const guestBtn = document.getElementById('gateGuest');
     const logoutB  = document.getElementById('logoutBtn');
 
-    if (loginBtn) loginBtn.addEventListener('click', () => { const v = (passIn && passIn.value.trim()) || ''; loginWithPassword(v); });
-    if (passIn) passIn.addEventListener('keydown', e => { if(e.key === 'Enter' && loginBtn) loginBtn.click(); });
+    if (loginBtn) loginBtn.addEventListener('click', () => {
+      const v = (passIn && passIn.value.trim()) || '';
+      loginWithPassword(v);
+    });
+    if (passIn) passIn.addEventListener('keydown', e => {
+      if(e.key === 'Enter' && loginBtn) loginBtn.click();
+    });
     if (guestBtn) guestBtn.addEventListener('click', loginAsGuest);
     if (logoutB)  logoutB.addEventListener('click', logout);
 
@@ -476,9 +548,13 @@
       if (document.body.classList.contains('locked')) return;
       const kicked = await checkKicked();
       if (kicked) {
-        clearSession(); lock();
+        clearSession();
+        lock();
         const msg = document.getElementById('gateMsg');
-        if (msg) { msg.style.color = '#e74c3c'; msg.textContent = 'دسترسی شما توسط مدیر قطع شد. لطفاً دوباره وارد شوید.'; }
+        if (msg) {
+          msg.style.color = '#e74c3c';
+          msg.textContent = 'دسترسی شما توسط مدیر قطع شد. لطفاً دوباره وارد شوید.';
+        }
       }
     }, 15000);
   }
@@ -488,7 +564,7 @@
 })();
 </script>
 
-<!-- ===================== منطق اصلی بازی (ربات در برابر انسان) ===================== -->
+<!-- ===================== منطق اصلی بازی (اتصال دقیق به اوراکل) ===================== -->
 <script>
 const SIZE = 6;
 const EMPTY = 0, BLACK = 1, WHITE = 2;
@@ -501,15 +577,15 @@ let myColor = BLACK;
 let aiColor = WHITE;
 let isOracleThinking = false;
 let lastBotMove = null; 
+let moveHistory = []; // آرایه‌ای برای ذخیره تمام حرکات (تاریخچه)
 
 let oracleWorker = null;
-let oracleTimeout = null;
 
 async function initOracleWorker() {
     if (oracleWorker) return;
     
     try {
-        document.getElementById('status').textContent = 'در حال بارگذاری موتور ربات...';
+        document.getElementById('status').textContent = 'در حال بارگذاری موتور اوراکل...';
         
         const jsUrl = new URL('assets/worker.js', window.location.href).href;
         const response = await fetch(jsUrl);
@@ -529,8 +605,6 @@ async function initOracleWorker() {
         oracleWorker = new Worker(blobUrl);
         
         oracleWorker.onmessage = function(event) {
-            clearTimeout(oracleTimeout);
-            
             const responseData = event.data;
             let moveIndex = -1;
 
@@ -552,16 +626,16 @@ async function initOracleWorker() {
                 
                 board = simulateMove(board, r, c, aiColor);
                 lastBotMove = { r, c };
+                moveHistory.push(r, c); // ثبت حرکت اوراکل در تاریخچه
                 currentPlayer = myColor;
                 
                 isOracleThinking = false;
                 renderBoard();
                 
-                // نمایش موفقیت اوراکل (تا زمانی که کاربر حرکت کند باقی می‌ماند)
+                // نمایش موفقیت اوراکل
                 document.getElementById('status').textContent = '✅ حرکت توسط اوراکل انجام شد.';
                 document.getElementById('status').style.color = '#2ecc71';
                 
-                // کمی تاخیر برای اینکه کاربر متن را ببیند، سپس اجازه حرکت
                 setTimeout(() => {
                     if (!gameOver) {
                         document.getElementById('status').textContent = 'نوبت شماست. یک خانه را انتخاب کنید.';
@@ -570,109 +644,24 @@ async function initOracleWorker() {
                 }, 1500);
                 
             } else {
-                executeFallback('پاسخ نامعتبر از اوراکل');
+                isOracleThinking = false;
+                document.getElementById('status').textContent = '⚠️ اوراکل حرکتی پیدا نکرد.';
+                document.getElementById('status').style.color = '#e74c3c';
             }
         };
 
         oracleWorker.onerror = function(e) {
-            clearTimeout(oracleTimeout);
+            isOracleThinking = false;
             console.error("Oracle Error:", e.message || e);
-            executeFallback('خطای داخلی موتور');
+            document.getElementById('status').textContent = '⚠️ خطای داخلی در موتور اوراکل!';
+            document.getElementById('status').style.color = '#e74c3c';
         };
         
     } catch (err) {
-        clearTimeout(oracleTimeout);
-        executeFallback('خطای بارگذاری فایل');
-    }
-}
-
-function executeFallback(reason) {
-    if (gameOver || !isOracleThinking) return;
-
-    const validMoves = getValidMoves(board, aiColor);
-    if (validMoves.length > 0) {
-        let bestMove = validMoves[0];
-        let bestScore = -Infinity;
-        
-        for (const [r, c] of validMoves) {
-            const nb = simulateMove(board, r, c, aiColor);
-            const score = minimax(nb, 3, false, aiColor);
-            if (score > bestScore) {
-                bestScore = score;
-                bestMove = [r, c];
-            }
-        }
-        
-        const [r, c] = bestMove;
-        board = simulateMove(board, r, c, aiColor);
-        lastBotMove = { r, c };
-        currentPlayer = myColor;
-        
-        // نمایش خطای اوراکل
-        document.getElementById('status').textContent = `⚠️ خطای اوراکل (${reason})! حرکت توسط سیستم پشتیبان انجام شد.`;
+        isOracleThinking = false;
+        document.getElementById('status').textContent = '⚠️ خطا در بارگذاری فایل.';
         document.getElementById('status').style.color = '#e74c3c';
-        
-        setTimeout(() => {
-            if (!gameOver) {
-                document.getElementById('status').textContent = 'نوبت شماست. یک خانه را انتخاب کنید.';
-                document.getElementById('status').style.color = '#f1c40f';
-            }
-        }, 2500);
-    } else {
-        currentPlayer = myColor;
-        document.getElementById('status').textContent = 'ربات حرکتی ندارد.';
-        document.getElementById('status').style.color = '#f1c40f';
     }
-    
-    isOracleThinking = false;
-    renderBoard();
-}
-
-function minimax(tempBoard, depth, isMaximizing, aiPlayer) {
-    if (depth === 0) return evaluateBoard(tempBoard, aiPlayer);
-    const currentPlayerMini = isMaximizing ? aiPlayer : (aiPlayer === BLACK ? WHITE : BLACK);
-    const validMoves = getValidMoves(tempBoard, currentPlayerMini);
-    
-    if (validMoves.length === 0) {
-        const otherMoves = getValidMoves(tempBoard, isMaximizing ? (aiPlayer === BLACK ? WHITE : BLACK) : aiPlayer);
-        if (otherMoves.length === 0) return evaluateBoard(tempBoard, aiPlayer);
-        return minimax(tempBoard, depth - 1, !isMaximizing, aiPlayer);
-    }
-
-    if (isMaximizing) {
-        let maxEval = -Infinity;
-        for (const [r, c] of validMoves) {
-            const nb = simulateMove(tempBoard, r, c, aiPlayer);
-            maxEval = Math.max(maxEval, minimax(nb, depth - 1, false, aiPlayer));
-        }
-        return maxEval;
-    } else {
-        let minEval = Infinity;
-        for (const [r, c] of validMoves) {
-            const nb = simulateMove(tempBoard, r, c, aiPlayer === BLACK ? WHITE : BLACK);
-            minEval = Math.min(minEval, minimax(nb, depth - 1, true, aiPlayer));
-        }
-        return minEval;
-    }
-}
-
-function evaluateBoard(tempBoard, aiPlayer) {
-    const weights = [
-        [120, -80,  20,  20, -80, 120],
-        [-80, -40,  -5,  -5, -40, -80],
-        [ 20,  -5,   5,   5,  -5,  20],
-        [ 20,  -5,   5,   5,  -5,  20],
-        [-80, -40,  -5,  -5, -40, -80],
-        [120, -80,  20,  20, -80, 120]
-    ];
-    let score = 0;
-    for (let r = 0; r < SIZE; r++) {
-        for (let c = 0; c < SIZE; c++) {
-            if (tempBoard[r][c] === aiPlayer) score += weights[r][c];
-            else if (tempBoard[r][c] !== EMPTY) score -= weights[r][c];
-        }
-    }
-    return score;
 }
 
 async function askOracle() {
@@ -681,36 +670,18 @@ async function askOracle() {
     if (!oracleWorker) {
         await initOracleWorker();
     }
-    if (!oracleWorker) {
-        executeFallback('موتور لود نشد');
-        return;
-    }
+    if (!oracleWorker) return;
 
     isOracleThinking = true;
     document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
     document.getElementById('status').style.color = '#f1c40f';
 
-    let blackBits = 0n;
-    let whiteBits = 0n;
-    for (let r = 0; r < SIZE; r++) {
-        for (let c = 0; c < SIZE; c++) {
-            const mask = 1n << BigInt(r * SIZE + c);
-            if (board[r][c] === BLACK) blackBits |= mask;
-            else if (board[r][c] === WHITE) whiteBits |= mask;
-        }
-    }
+    // 🔥 ارسال تاریخچه حرکات به جای بیت‌بورد
+    // بر اساس کد مینی‌فای شده، اوراکل یک آرایه مسطح از مختصات می‌خواهد [r1, c1, r2, c2, ...]
+    const flatMoves = moveHistory.map(m => m); 
     
-    oracleWorker.postMessage([
-        blackBits.toString(), 
-        whiteBits.toString(), 
-        aiColor === BLACK ? 0 : 1, 
-        60 
-    ]);
-
-    clearTimeout(oracleTimeout);
-    oracleTimeout = setTimeout(() => {
-        executeFallback('تایم‌اوت (کندی سرور)');
-    }, 3000); 
+    // ارسال به ورکر (آرگومان اول شماره درخواست است که 0 می‌گذاریم)
+    oracleWorker.postMessage([0, flatMoves]);
 }
 
 // ============================================================
@@ -722,26 +693,27 @@ function initBoard() {
     board = createEmptyBoard();
     board[2][2] = WHITE; board[2][3] = BLACK;
     board[3][2] = BLACK; board[3][3] = WHITE;
+    moveHistory = []; // ریست تاریخچه
 }
 
 function isOnBoard(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
-function getValidMoves(tempBoard, player) {
+function getValidMoves(board, player) {
     const opp = player === BLACK ? WHITE : BLACK;
     const moves = [];
     for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
-            if (tempBoard[r][c] !== EMPTY) continue;
+            if (board[r][c] !== EMPTY) continue;
             for (const [dr, dc] of DIRS) {
                 let nr = r + dr, nc = c + dc, found = false;
-                while (isOnBoard(nr, nc) && tempBoard[nr][nc] === opp) { nr += dr; nc += dc; found = true; }
-                if (found && isOnBoard(nr, nc) && tempBoard[nr][nc] === player) { moves.push([r, c]); break; }
+                while (isOnBoard(nr, nc) && board[nr][nc] === opp) { nr += dr; nc += dc; found = true; }
+                if (found && isOnBoard(nr, nc) && board[nr][nc] === player) { moves.push([r, c]); break; }
             }
         }
     }
     return moves;
 }
-function simulateMove(tempBoard, r, c, player) {
-    const nb = tempBoard.map(row => [...row]);
+function simulateMove(board, r, c, player) {
+    const nb = board.map(row => [...row]);
     nb[r][c] = player;
     const opp = player === BLACK ? WHITE : BLACK;
     for (const [dr, dc] of DIRS) {
@@ -754,11 +726,11 @@ function simulateMove(tempBoard, r, c, player) {
     }
     return nb;
 }
-function countPieces(tempBoard) {
+function countPieces(board) {
     let black = 0, white = 0;
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-        if (tempBoard[r][c] === BLACK) black++;
-        else if (tempBoard[r][c] === WHITE) white++;
+        if (board[r][c] === BLACK) black++;
+        else if (board[r][c] === WHITE) white++;
     }
     return { black, white };
 }
@@ -841,6 +813,7 @@ function handleMove(r, c) {
     
     board = simulateMove(board, r, c, currentPlayer);
     lastBotMove = null; 
+    moveHistory.push(r, c); // ثبت حرکت شما در تاریخچه
     
     currentPlayer = aiColor; 
     renderBoard(); 
