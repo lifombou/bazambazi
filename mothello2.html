@@ -3,45 +3,203 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>اتللو ۶×۶ - ربات ترکیبی</title>
+    <title>اتللو ۶×۶ - اوراکل مطلق</title>
     <link rel="icon" href="data:,">
     <style>
-        body { font-family: Tahoma, sans-serif; background-color: #1a1a2e; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; user-select: none; min-height: 100vh; }
+        body {
+            font-family: Tahoma, sans-serif;
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            margin: 0;
+            user-select: none;
+            min-height: 100vh;
+        }
         h1 { color: #e94560; font-size: 1.2rem; margin-bottom: 5px; margin-top: 10px;}
         .subtitle { color: #888; font-size: 0.8rem; margin-bottom: 15px; text-align: center; }
-        #board-container { background-color: #16213e; padding: 10px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        #board { display: grid; grid-template-columns: repeat(6, min(55px, 13vw)); grid-template-rows: repeat(6, min(55px, 13vw)); gap: 3px; background-color: #0f3460; padding: 6px; border-radius: 8px; }
-        .cell { width: 100%; height: 100%; background-color: #27ae60; border-radius: 6px; display: flex; justify-content: center; align-items: center; cursor: default; transition: all 0.2s ease; position: relative; }
+
+        #board-container {
+            background-color: #16213e;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(6, min(55px, 13vw));
+            grid-template-rows: repeat(6, min(55px, 13vw));
+            gap: 3px;
+            background-color: #0f3460;
+            padding: 6px;
+            border-radius: 8px;
+        }
+
+        .cell {
+            width: 100%;
+            height: 100%;
+            background-color: #27ae60;
+            border-radius: 6px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: default; 
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
         .cell.disabled { cursor: not-allowed; }
-        .cell.valid-move { cursor: pointer; box-shadow: inset 0 0 0 3px #3498db; }
-        .cell.valid-move:hover { background-color: #2ecc71; }
-        .cell.black::after, .cell.white::after { content: ''; width: 75%; height: 75%; border-radius: 50%; transition: all 0.2s; box-shadow: 0 3px 6px rgba(0,0,0,0.4); z-index: 2; pointer-events: none; }
+
+        .cell.valid-move {
+            cursor: pointer;
+            box-shadow: inset 0 0 0 3px #3498db;
+        }
+        .cell.valid-move:hover {
+            background-color: #2ecc71;
+        }
+
+        .cell.black::after, .cell.white::after {
+            content: '';
+            width: 75%;
+            height: 75%;
+            border-radius: 50%;
+            transition: all 0.2s;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+            z-index: 2;
+            pointer-events: none;
+        }
         .cell.black::after { background: radial-gradient(circle at 35% 35%, #555, #111); }
         .cell.white::after { background: radial-gradient(circle at 35% 35%, #fff, #ccc); }
-        .cell.last-bot-move::before { content: ''; position: absolute; width: 85%; height: 85%; border-radius: 50%; border: 3px dashed #f1c40f; z-index: 3; animation: pulse 1.5s infinite; pointer-events: none; }
-        @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }
-        .panel { display: flex; gap: 15px; margin-top: 15px; font-size: 1rem; background: #0f3460; padding: 10px 20px; border-radius: 8px; align-items: center; }
+
+        .cell.last-bot-move::before {
+            content: '';
+            position: absolute;
+            width: 85%;
+            height: 85%;
+            border-radius: 50%;
+            border: 3px dashed #f1c40f;
+            z-index: 3;
+            animation: pulse 1.5s infinite;
+            pointer-events: none;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        .panel {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            font-size: 1rem;
+            background: #0f3460;
+            padding: 10px 20px;
+            border-radius: 8px;
+            align-items: center;
+        }
         .score-black { color: #111; font-weight: bold; background: #eee; padding: 2px 8px; border-radius: 4px; }
         .score-white { color: #111; font-weight: bold; background: #fff; padding: 2px 8px; border-radius: 4px; }
+
         #status { margin-top: 15px; font-size: 0.95rem; color: #f1c40f; min-height: 25px; text-align: center; padding: 0 10px; font-weight: bold;}
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; color: #fff; font-family: Tahoma; }
+
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 100;
+            color: #fff; font-family: Tahoma;
+        }
         .overlay h2 { color: #e94560; margin-bottom: 10px; }
         .overlay p { margin-bottom: 20px; text-align: center; padding: 0 20px; }
         .overlay button { margin: 8px; width: 220px; padding: 12px; font-size: 1rem; cursor: pointer; border-radius: 8px; border: none; background: #e94560; color: white; }
         .overlay button:hover { background-color: #c0392b; }
+
+        /* ================= GATE STYLES (صفحه ورود) ================= */
+        body.locked{overflow:hidden;}
+        body.locked #app{display:none !important;}
         
-        body.locked{overflow:hidden;} body.locked #app{display:none !important;}
-        #gate{ position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center; padding:20px; background:radial-gradient(1200px 600px at 50% -10%, #26324a, #141a24 60%, #0f131a 100%); direction:rtl; }
+        #gate{
+            position:fixed; inset:0; z-index:100000;
+            display:flex; align-items:center; justify-content:center; padding:20px;
+            background:radial-gradient(1200px 600px at 50% -10%, #26324a, #141a24 60%, #0f131a 100%);
+            font-family:Tahoma,"Segoe UI",Arial,sans-serif;
+            direction:rtl;
+        }
         body:not(.locked) #gate{display:none;}
-        .gate-card{ width:100%; max-width:420px; background:#242c3d; border-radius:16px; padding:28px 24px 22px; box-shadow:0 20px 60px rgba(0,0,0,.6); text-align:center; color:#e8edf5; }
-        .gate-card h2{ margin:0 0 10px; font-size:20px; background:linear-gradient(90deg,#7fb4ff,#4a90e2,#a5c9ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-        #gatePass{ width:100%; background:#2d3748; border:1px solid #3a465a; border-radius:10px; padding:12px; color:#e8edf5; text-align:center; box-sizing:border-box; }
-        #gateLogin, #gateGuest { width:100%; padding:11px; border:none; border-radius:10px; font-weight:bold; cursor:pointer; margin-top:10px; }
-        #gateLogin { background:#4a90e2; color:#fff; }
-        #gateGuest { background:#2d3748; color:#e8edf5; }
-        #sessionBar{ position:fixed; left:14px; bottom:14px; z-index:9990; display:flex; align-items:center; gap:10px; background:rgba(36,44,61,.96); border-radius:999px; padding:7px 14px; font-size:11.5px; color:#95a3b8; }
+
+        .gate-card{
+            width:100%; max-width:420px;
+            background:#242c3d; border-radius:16px; padding:28px 24px 22px;
+            box-shadow:0 20px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
+            text-align:center; color:#e8edf5;
+        }
+        .gate-card h2{
+            margin:0 0 10px; font-size:20px; font-weight:bold;
+            background:linear-gradient(90deg,#7fb4ff,#4a90e2,#a5c9ff);
+            -webkit-background-clip:text; background-clip:text;
+            -webkit-text-fill-color:transparent;
+        }
+        .gate-sub{margin:0 0 20px; font-size:13px; color:#95a3b8; line-height:2;}
+        #gatePass{
+            width:100%; background:#2d3748; border:1px solid #3a465a; border-radius:10px;
+            padding:12px; color:#e8edf5; font-family:inherit; font-size:17px;
+            text-align:center; letter-spacing:2px; outline:none; transition:.15s;
+            box-sizing:border-box;
+        }
+        #gatePass:focus{border-color:#4a90e2; box-shadow:0 0 0 3px rgba(74,144,226,.25);}
+        #gateLogin{
+            margin-top:12px; background:#4a90e2; color:#fff; width:100%;
+            padding:11px 16px; border:none; border-radius:10px;
+            font-family:inherit; font-size:14px; font-weight:bold; cursor:pointer;
+            box-shadow:0 4px 14px rgba(74,144,226,.4); transition:.15s;
+        }
+        #gateLogin:hover:not(:disabled){background:#3b7ac7;}
+        #gateLogin:disabled{background:#3a465a; cursor:wait;}
+        .gate-msg{min-height:20px; margin-top:10px; font-size:12.5px; color:#e74c3c; line-height:1.8;}
+        .gate-msg.ok{color:#2ecc71;}
+        .gate-sep{display:flex; align-items:center; gap:10px; margin:16px 0 12px; color:#95a3b8; font-size:11.5px;}
+        .gate-sep::before,.gate-sep::after{content:""; flex:1; height:1px; background:#3a465a;}
+        #gateGuest{
+            background:#2d3748; border:1px solid #3a465a; color:#e8edf5; width:100%;
+            padding:11px 16px; border-radius:10px; font-family:inherit;
+            font-size:13.5px; font-weight:bold; cursor:pointer;
+            box-shadow:none; transition:.15s;
+        }
+        #gateGuest:hover:not(:disabled){background:#374255;}
+        #gateGuest:disabled{opacity:.5; cursor:not-allowed;}
+        .gate-contact{
+            margin-top:20px; padding-top:14px;
+            border-top:1px dashed #3a465a;
+            font-size:12.5px; color:#95a3b8; line-height:2;
+        }
+        .gate-contact a{
+            color:#f1c40f; font-weight:bold; text-decoration:none;
+            direction:ltr; display:inline-block; unicode-bidi:embed;
+        }
+        .gate-contact a:hover{text-decoration:underline;}
+
+        #sessionBar{
+            position:fixed; left:14px; bottom:14px; z-index:9990;
+            display:flex; align-items:center; gap:10px;
+            background:rgba(36,44,61,.96); border:1px solid #3a465a; border-radius:999px;
+            padding:7px 8px 7px 14px; font-size:11.5px; color:#95a3b8;
+            font-family:Tahoma,"Segoe UI",Arial,sans-serif;
+            box-shadow:0 8px 22px rgba(0,0,0,.5); backdrop-filter:blur(6px);
+            direction:rtl;
+        }
         #sessionBar.hidden{display:none;}
-        #logoutBtn{ background:#2d3748; color:#e8edf5; border-radius:999px; border:none; padding:6px 12px; cursor:pointer; }
+        #sessionInfo b{color:#e8edf5;}
+        #logoutBtn{
+            width:auto; padding:6px 12px; font-size:11.5px;
+            background:#2d3748; color:#e8edf5; border-radius:999px;
+            border:none; cursor:pointer; font-family:inherit; font-weight:bold;
+            transition:.15s;
+        }
+        #logoutBtn:hover{background:#e74c3c; color:#fff;}
     </style>
 </head>
 <body class="locked">
@@ -49,10 +207,25 @@
 <div id="gate">
   <div class="gate-card">
     <h2>🔒 ورود به بازی</h2>
-    <input id="gatePass" type="password" placeholder="رمز عبور">
+    <p class="gate-sub">
+      این برنامه فقط برای افراد مجاز است.<br>
+      رمز عبور اختصاصی خود را وارد کنید.
+    </p>
+
+    <input id="gatePass" type="password" autocomplete="off" spellcheck="false" placeholder="رمز عبور">
     <button id="gateLogin">ورود</button>
-    <div class="gate-msg" id="gateMsg" style="color:#e74c3c; margin-top:10px;"></div>
-    <button id="gateGuest">👤 ورود مهمان</button>
+    <div class="gate-msg" id="gateMsg"></div>
+
+    <div class="gate-sep"><span>یا</span></div>
+
+    <button id="gateGuest">👤 ورود مهمان (۳۰ دقیقه از اولین ورود)</button>
+    <div class="gate-msg" id="gateGuestMsg" style="color:#95a3b8"></div>
+
+    <div class="gate-contact">
+      جهت تهیه رمز به آیدی تلگرام<br>
+      <a href="https://t.me/jkfihfjhdb" target="_blank" rel="noopener">@jkfihfjhdb</a><br>
+      مراجعه کنید.
+    </div>
   </div>
 </div>
 
@@ -64,13 +237,13 @@
 <div id="app">
     <div class="overlay" id="colorOverlay">
         <h2>شما چه رنگی هستید؟</h2>
-        <p>شما در برابر ربات ترکیبی بازی می‌کنید.</p>
+        <p>شما در برابر اوراکل مطلق بازی می‌کنید.</p>
         <button onclick="startGame(1)">⚫ من سیاه هستم (شروع‌کننده)</button>
         <button onclick="startGame(2)">⚪ من سفید هستم</button>
     </div>
 
-    <h1>اتللو ۶×۶ - ربات ترکیبی</h1>
-    <div class="subtitle">حاشیه آبی = حرکت مجاز | خط‌چین زرد = حرکت ربات</div>
+    <h1>اتللو ۶×۶ - اوراکل مطلق</h1>
+    <div class="subtitle">حاشیه آبی = حرکت مجاز | خط‌چین زرد = حرکت اوراکل</div>
 
     <div id="board-container">
         <div id="board"></div>
@@ -85,48 +258,231 @@
 </div>
 
 <script>
-// کدهای امنیتی
 (function(){
   'use strict';
+
   const API_BASE   = 'https://fra.cloud.appwrite.io/v1';
   const PROJECT_ID = '6ac18432000eb4377dad';
   const DB_ID      = '6ac188ac002436bf9010';
   const TABLE_ID   = '6ac1895e001bfb64bdfb'; 
-  const GUEST_HOURS = 0.5; const GUEST_ONCE_PER_DEVICE = true; const DEVICE_LOCK = true; const USER_SESSION_HOURS = null;
-  const ACCESS_PREFIX = 'mot_access_'; const SESSION_KEY   = 'mot_session_v1';
+
+  const GUEST_HOURS = 0.5;
+  const GUEST_ONCE_PER_DEVICE = true;
+  const DEVICE_LOCK = true;
+  const USER_SESSION_HOURS = null;
+
+  const ACCESS_PREFIX = 'mot_access_';
+  const SESSION_KEY   = 'mot_session_v1';
+
   function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
   function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
   function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
+
   async function getDeviceFingerprint() {
-    const parts = [navigator.userAgent || '', navigator.language || '', navigator.platform || '', String(navigator.hardwareConcurrency || 0), String(navigator.maxTouchPoints || 0), String(screen.width) + 'x' + String(screen.height), String(screen.colorDepth || 0), String(window.devicePixelRatio || 1)];
+    const parts = [];
+    parts.push(navigator.userAgent || '');
+    parts.push(navigator.language || '');
+    parts.push(navigator.platform || '');
+    parts.push(String(navigator.hardwareConcurrency || 0));
+    parts.push(String(navigator.maxTouchPoints || 0));
+    parts.push(String(screen.width) + 'x' + String(screen.height));
+    parts.push(String(screen.colorDepth || 0));
+    parts.push(String(window.devicePixelRatio || 1));
     try { parts.push(Intl.DateTimeFormat().resolvedOptions().timeZone || ''); } catch(e){}
     parts.push(String(new Date().getTimezoneOffset()));
-    try { const c = document.createElement('canvas'); c.width = 200; c.height = 40; const cx = c.getContext('2d'); cx.textBaseline = 'top'; cx.font = '14px Arial'; cx.fillStyle = '#f60'; cx.fillRect(10, 5, 80, 25); cx.fillStyle = '#069'; cx.fillText('MotGate', 15, 10); parts.push(c.toDataURL()); } catch(e){ parts.push('canvas_err'); }
-    let str = parts.join('|||'); let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return 'fp_' + Math.abs(h).toString(36);
+    try {
+      const c = document.createElement('canvas');
+      c.width = 200; c.height = 40;
+      const cx = c.getContext('2d');
+      cx.textBaseline = 'top'; cx.font = '14px Arial';
+      cx.fillStyle = '#f60'; cx.fillRect(10, 5, 80, 25);
+      cx.fillStyle = '#069'; cx.fillText('MotGate', 15, 10);
+      cx.fillStyle = 'rgba(102,204,0,0.7)'; cx.fillText('Fingerprint', 20, 20);
+      parts.push(c.toDataURL());
+    } catch(e){ parts.push('canvas_err'); }
+    try {
+      const c2 = document.createElement('canvas');
+      const gl = c2.getContext('webgl') || c2.getContext('experimental-webgl');
+      if (gl) {
+        const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+        parts.push(dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))
+                       : String(gl.getParameter(gl.RENDERER)));
+      }
+    } catch(e){}
+    let str = parts.join('|||');
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    h = Math.abs(h).toString(36);
+    let h2 = 0;
+    const ua = navigator.userAgent || '';
+    for (let i = 0; i < ua.length; i++) h2 = (h2 * 31 + ua.charCodeAt(i)) | 0;
+    h2 = Math.abs(h2).toString(36);
+    return 'fp_' + h + '_' + h2;
   }
-  function apiHeaders() { return { 'X-Appwrite-Project': PROJECT_ID, 'Content-Type': 'application/json', 'Accept': 'application/json' }; }
-  async function apiGetRow(rowId) { const res = await fetch(API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId), { headers: apiHeaders() }); if (res.status === 404) return null; if (!res.ok) throw new Error('API ' + res.status); return await res.json(); }
-  async function apiUpdateRow(rowId, fields) { await fetch(API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId), { method: 'PATCH', headers: apiHeaders(), body: JSON.stringify({ data: fields }) }); }
-  async function apiCreateRow(rowId, fields) { await fetch(API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows', { method: 'POST', headers: apiHeaders(), body: JSON.stringify({ rowId: rowId, data: fields }) }); }
+
+  function apiHeaders() {
+    return {
+      'X-Appwrite-Project': PROJECT_ID,
+      'X-Appwrite-Response-Format': '1.6.0',
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+  }
+
+  async function apiGetRow(rowId) {
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
+    const res = await fetch(url, { headers: apiHeaders() });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error('API ' + res.status);
+    return await res.json();
+  }
+
+  async function apiUpdateRow(rowId, fields) {
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: apiHeaders(),
+      body: JSON.stringify({ data: fields })
+    });
+    if (!res.ok) throw new Error('API ' + res.status);
+    return await res.json();
+  }
+
+  async function apiCreateRow(rowId, fields) {
+    const url = API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({ rowId: rowId, data: fields })
+    });
+    if (!res.ok) throw new Error('API ' + res.status);
+    return await res.json();
+  }
+
   function loadSession(){ try { return JSON.parse(lsGet(SESSION_KEY) || 'null'); } catch(e){ return null; } }
   function saveSession(s){ lsSet(SESSION_KEY, JSON.stringify(s)); }
   function clearSession(){ lsDel(SESSION_KEY); }
+
   function isExpired(s){ if(!s) return true; if(s.expiresAt == null) return false; return Date.now() >= s.expiresAt; }
+
+  async function checkKicked() {
+    const s = loadSession();
+    if (!s || isExpired(s) || s.type !== 'user' || !s.password) return false;
+    try {
+      const row = await apiGetRow(s.password).catch(() => null);
+      if (!row) return true;
+      if (row.banned === true || row.banned === 'true') return true;
+      const currentVer = String(row.sessionVersion || '1');
+      const myVer = String(s.sessionVersion || '1');
+      if (currentVer !== myVer) return true;
+      return false;
+    } catch (e) { return false; }
+  }
+
+  let barTimer = null;
   function lock(){ document.body.classList.add('locked'); const sb = document.getElementById('sessionBar'); if (sb) sb.classList.add('hidden'); }
   function unlock(){ document.body.classList.remove('locked'); startSessionBar(); }
-  function startSessionBar(){ const bar = document.getElementById('sessionBar'); const info = document.getElementById('sessionInfo'); if (!bar || !info) return; bar.classList.remove('hidden'); setInterval(() => { const s = loadSession(); if(!s || isExpired(s)){ clearSession(); lock(); return; } let txt = '<b>' + s.name + '</b>'; if(s.type === 'guest' && s.expiresAt){ const left = s.expiresAt - Date.now(); if(left <= 0){ clearSession(); lock(); return; } txt += ' — مهمان (' + Math.floor(left / 60000) + ' دقیقه)'; } else { txt += ' — دسترسی نامحدود'; } info.innerHTML = txt; }, 1000); }
-  async function loginWithPassword(pass){ const msg = document.getElementById('gateMsg'); msg.textContent = ''; if(!pass){ msg.textContent = 'رمز را وارد کنید.'; return; } try { let row = await apiGetRow(pass).catch(() => null); if (!row) { msg.textContent = 'رمز اشتباه است.'; return; } if (row.banned === true) { msg.textContent = 'دسترسی مسدود است.'; return; } const fp = await getDeviceFingerprint(); if (DEVICE_LOCK && (!row.deviceId || row.deviceId === '')) { try { await apiUpdateRow(pass, { deviceId: fp }); } catch(e){} } saveSession({ name: 'کاربر', type: 'user', password: pass, startedAt: Date.now(), expiresAt: null }); msg.textContent = 'خوش آمدید...'; setTimeout(unlock, 250); } catch (err) { msg.textContent = 'خطای شبکه.'; } }
-  async function loginAsGuest(){ const msg = document.getElementById('gateGuestMsg'); msg.textContent = ''; try { const fp = await getDeviceFingerprint(); const guestKey = 'guest_' + fp; if (GUEST_ONCE_PER_DEVICE) { const existing = await apiGetRow(guestKey).catch(() => null); if (existing) { msg.textContent = 'قبلاً استفاده شده.'; return; } try { await apiCreateRow(guestKey, { deviceId: fp }); } catch(e){} } saveSession({ name: 'مهمان', type: 'guest', startedAt: Date.now(), expiresAt: Date.now() + GUEST_HOURS * 3600000 }); msg.textContent = 'در حال ورود...'; setTimeout(unlock, 250); } catch (err) { msg.textContent = 'خطای شبکه.'; } }
-  document.getElementById('gateLogin').onclick = () => loginWithPassword(document.getElementById('gatePass').value.trim());
-  document.getElementById('gateGuest').onclick = loginAsGuest;
-  document.getElementById('logoutBtn').onclick = () => { clearSession(); lock(); };
-  const s = loadSession(); if(s && !isExpired(s)) unlock(); else { clearSession(); lock(); }
+
+  function startSessionBar(){
+    const bar  = document.getElementById('sessionBar');
+    const info = document.getElementById('sessionInfo');
+    if (!bar || !info) return;
+    bar.classList.remove('hidden');
+    function tick(){
+      const s = loadSession();
+      if(!s || isExpired(s)){ clearSession(); lock(); return; }
+      let txt = '<b>' + s.name + '</b>';
+      if(s.type === 'guest' && s.expiresAt){
+        const left = s.expiresAt - Date.now();
+        if(left <= 0){ clearSession(); lock(); return; }
+        const m = Math.floor(left / 60000);
+        const sec = Math.floor((left % 60000) / 1000);
+        txt += ' — مهمان (' + m + ' دقیقه و ' + sec + ' ثانیه)';
+      } else { txt += ' — دسترسی نامحدود'; }
+      info.innerHTML = txt;
+    }
+    tick();
+    if(barTimer) clearInterval(barTimer);
+    barTimer = setInterval(tick, 1000);
+  }
+
+  async function loginWithPassword(pass){
+    const msg = document.getElementById('gateMsg');
+    const loginBtn = document.getElementById('gateLogin');
+    msg.classList.remove('ok'); msg.textContent = '';
+    if(!pass){ msg.textContent = 'رمز را وارد کنید.'; return; }
+    loginBtn.disabled = true; msg.textContent = 'در حال بررسی...';
+    try {
+      let row = await apiGetRow(pass).catch(() => null);
+      if (!row) { msg.textContent = 'رمز عبور اشتباه است.'; loginBtn.disabled = false; return; }
+      if (row.banned === true || row.banned === 'true') { msg.textContent = 'دسترسی شما مسدود شده است.'; loginBtn.disabled = false; return; }
+      const fp = await getDeviceFingerprint();
+      const storedDevice = (row.deviceId || '').trim();
+      const hasLocalAccess = lsGet(ACCESS_PREFIX + pass) === '1';
+      const allowed = hasLocalAccess || !storedDevice || storedDevice === fp;
+      if (!allowed) { msg.textContent = 'این رمز قبلاً روی دستگاه دیگری استفاده شده است.'; loginBtn.disabled = false; return; }
+      if (DEVICE_LOCK && !storedDevice) { try { await apiUpdateRow(pass, { deviceId: fp }); } catch(e){} }
+      lsSet(ACCESS_PREFIX + pass, '1');
+      const session = { name: 'کاربر', type: 'user', password: pass, sessionVersion: String(row.sessionVersion || '1'), startedAt: Date.now(), expiresAt: (USER_SESSION_HOURS == null) ? null : (Date.now() + USER_SESSION_HOURS * 3600000) };
+      saveSession(session);
+      msg.classList.add('ok'); msg.textContent = 'خوش آمدید...';
+      setTimeout(unlock, 250);
+    } catch (err) { console.error(err); msg.textContent = 'خطای شبکه. دوباره تلاش کن.'; loginBtn.disabled = false; }
+  }
+
+  async function loginAsGuest(){
+    const msg = document.getElementById('gateGuestMsg'); msg.textContent = '';
+    try {
+      const fp = await getDeviceFingerprint();
+      const guestKey = 'guest_' + fp;
+      if (GUEST_ONCE_PER_DEVICE) {
+        const existing = await apiGetRow(guestKey).catch(() => null);
+        if (existing) { msg.textContent = 'ورود مهمان قبلاً در این دستگاه استفاده شده است.'; return; }
+        try { await apiCreateRow(guestKey, { deviceId: fp }); } catch(e){}
+      }
+      const now = Date.now();
+      saveSession({ name: 'مهمان', type: 'guest', startedAt: now, expiresAt: now + GUEST_HOURS * 3600000 });
+      msg.textContent = 'در حال ورود...';
+      setTimeout(unlock, 250);
+    } catch (err) { console.error(err); msg.textContent = 'خطای شبکه. دوباره تلاش کن.'; }
+  }
+
+  function logout(){ clearSession(); const p = document.getElementById('gatePass'); if (p) p.value = ''; const m1 = document.getElementById('gateMsg'); if (m1) m1.textContent = ''; const m2 = document.getElementById('gateGuestMsg'); if (m2) m2.textContent = ''; lock(); }
+
+  function initGate(){
+    const loginBtn = document.getElementById('gateLogin');
+    const passIn   = document.getElementById('gatePass');
+    const guestBtn = document.getElementById('gateGuest');
+    const logoutB  = document.getElementById('logoutBtn');
+
+    if (loginBtn) loginBtn.addEventListener('click', () => { const v = (passIn && passIn.value.trim()) || ''; loginWithPassword(v); });
+    if (passIn) passIn.addEventListener('keydown', e => { if(e.key === 'Enter' && loginBtn) loginBtn.click(); });
+    if (guestBtn) guestBtn.addEventListener('click', loginAsGuest);
+    if (logoutB)  logoutB.addEventListener('click', logout);
+
+    const s = loadSession();
+    if(s && !isExpired(s)) unlock();
+    else { clearSession(); lock(); }
+
+    setInterval(async () => {
+      if (document.body.classList.contains('locked')) return;
+      const kicked = await checkKicked();
+      if (kicked) {
+        clearSession(); lock();
+        const msg = document.getElementById('gateMsg');
+        if (msg) { msg.style.color = '#e74c3c'; msg.textContent = 'دسترسی شما توسط مدیر قطع شد. لطفاً دوباره وارد شوید.'; }
+      }
+    }, 15000);
+  }
+  
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', initGate);
+  else initGate();
 })();
 </script>
 
 <script>
 // ============================================================
-// سیستم ترکیبی: اوراکل برای سفید + آلفا-بتا برای سیاه
+// منطق بازی و اتصال به اوراکل (دقیقاً مطابق سورس رسمی)
 // ============================================================
 const SIZE = 6;
 const EMPTY = 0, BLACK = 1, WHITE = 2;
@@ -137,299 +493,152 @@ let currentPlayer = BLACK;
 let gameOver = false;
 let myColor = BLACK;
 let aiColor = WHITE;
-let isBotThinking = false;
+let isOracleThinking = false;
 let lastBotMove = null; 
-let moveHistory = []; 
+let moveHistory = []; // آرایه‌ای از ایندکس‌ها (0-35)
 
-// ============================================================
-// موتور اول: اوراکل (برای سفید)
-// ============================================================
 let oracleWorker = null;
+let isWaitingForOracle = false;
 
-function initOracle() {
+function initOracleWorker() {
     if (oracleWorker) return;
+    
     try {
-        // 🔥 لود مستقیم به عنوان ماژول (دقیقاً مثل نسخه‌ای که کار می‌کرد)
+        document.getElementById('status').textContent = 'در حال اتصال به اوراکل...';
+        // لود کردن فایل ورکر به عنوان ماژول
         oracleWorker = new Worker('assets/worker.js', { type: 'module' });
         
         oracleWorker.onmessage = function(event) {
-            isBotThinking = false;
-            const responseData = event.data;
+            if (!isWaitingForOracle) return; // اگر درخواستی ندادیم، نادیده بگیر
+            
+            const [moves, ret] = event.data;
+            isWaitingForOracle = false;
+            isOracleThinking = false;
+
             let moveIdx = -1;
 
-            if (Array.isArray(responseData)) {
-                const ret = responseData[1]; // [id, [move, score]] or [id, [move]]
-                if (Array.isArray(ret)) moveIdx = ret[0];
-                else if (typeof ret === 'number') moveIdx = ret;
+            // 🔥 پردازش دقیق پاسخ اوراکل بر اساس سورس کد رسمی
+            if (Array.isArray(ret)) {
+                // نوبت سیاه: ret یک آرایه است [move, value]
+                moveIdx = ret[0];
+            } else if (typeof ret === 'number') {
+                // نوبت سفید: ret یک عدد است
+                moveIdx = ret;
             }
 
             if (moveIdx >= 0 && moveIdx < SIZE * SIZE) {
-                applyBotMove(moveIdx);
+                const r = Math.floor(moveIdx / SIZE);
+                const c = moveIdx % SIZE;
+                
+                // اعمال حرکت
+                board = simulateMove(board, r, c, aiColor);
+                moveHistory.push(moveIdx); // ثبت ایندکس حرکت
+                lastBotMove = { r, c };
+                currentPlayer = myColor;
+                
+                renderBoard();
+                document.getElementById('status').textContent = '✅ حرکت توسط اوراکل انجام شد.';
+                document.getElementById('status').style.color = '#2ecc71';
+                
+                setTimeout(() => {
+                    if (!gameOver) checkTurn();
+                }, 800);
             } else {
+                // moveIdx === -1 یعنی پاس
                 document.getElementById('status').textContent = '⚠️ اوراکل پاس داد.';
                 document.getElementById('status').style.color = '#e74c3c';
-                setTimeout(passTurn, 1000);
+                // مدیریت پاس...
+                passTurn();
             }
         };
-        
-        oracleWorker.onerror = (e) => {
-            console.error("Oracle Error:", e);
-            document.getElementById('status').textContent = '⚠️ خطای داخلی اوراکل!';
-            isBotThinking = false;
-            setTimeout(passTurn, 1000);
+
+        oracleWorker.onerror = function(e) {
+            isOracleThinking = false;
+            isWaitingForOracle = false;
+            console.error("Oracle Error:", e.message || e);
+            document.getElementById('status').textContent = '⚠️ خطای داخلی موتور اوراکل.';
+            document.getElementById('status').style.color = '#e74c3c';
         };
-    } catch(e) { 
-        console.error("Failed to load Oracle:", e); 
-        isBotThinking = false;
+        
+    } catch (err) {
+        isOracleThinking = false;
+        document.getElementById('status').textContent = '⚠️ خطا در بارگذاری فایل.';
+        document.getElementById('status').style.color = '#e74c3c';
     }
 }
 
 function askOracle() {
-    if (gameOver || isBotThinking) return;
-    if (!oracleWorker) initOracle();
-    if (!oracleWorker) return;
+    if (gameOver) return;
+    
+    if (!oracleWorker) {
+        initOracleWorker();
+        // صبر برای لود شدن
+        setTimeout(() => { if (currentPlayer === aiColor) askOracle(); }, 1000);
+        return;
+    }
 
-    isBotThinking = true;
+    isOracleThinking = true;
+    isWaitingForOracle = true;
     document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
     document.getElementById('status').style.color = '#f1c40f';
 
-    oracleWorker.postMessage([0, moveHistory]);
-}
-
-// ============================================================
-// موتور دوم: آلفا-بتا (برای سیاه)
-// ============================================================
-const abWorkerCode = `
-    const SIZE = 6;
-    const EMPTY = 0, BLACK = 1, WHITE = 2;
-    const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
-    const WEIGHTS = [
-        [120, -80,  20,  20, -80, 120],
-        [-80, -40,  -5,  -5, -40, -80],
-        [ 20,  -5,   5,   5,  -5,  20],
-        [ 20,  -5,   5,   5,  -5,  20],
-        [-80, -40,  -5,  -5, -40, -80],
-        [120, -80,  20,  20, -80, 120]
-    ];
-    let tt = new Map();
-
-    self.onmessage = function(e) {
-        tt.clear();
-        const board = e.data.board;
-        const player = e.data.player;
-        
-        let emptyCount = 0;
-        for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) if(board[r][c] === EMPTY) emptyCount++;
-        
-        let depth = 8;
-        if (emptyCount < 14) depth = 12;
-        
-        const bestMove = findBestMove(board, player, depth);
-        self.postMessage({ move: bestMove });
-    };
-
-    function findBestMove(board, player, maxDepth) {
-        const validMoves = getValidMoves(board, player);
-        if (validMoves.length === 0) return null;
-        if (validMoves.length === 1) return validMoves[0];
-
-        let bestMove = validMoves[0];
-        let bestScore = -Infinity;
-        
-        validMoves.sort((a, b) => WEIGHTS[b[0]][b[1]] - WEIGHTS[a[0]][a[1]]);
-
-        for (const [r, c] of validMoves) {
-            const newBoard = simulateMove(board, r, c, player);
-            const score = -negamax(newBoard, maxDepth - 1, -Infinity, Infinity, player === BLACK ? WHITE : BLACK, false);
-            if (score > bestScore) {
-                bestScore = score;
-                bestMove = [r, c];
-            }
-        }
-        return bestMove;
-    }
-
-    function negamax(board, depth, alpha, beta, player, passed) {
-        const boardKey = boardToString(board) + player;
-        if (tt.has(boardKey)) {
-            const entry = tt.get(boardKey);
-            if (entry.depth >= depth) return entry.value;
-        }
-
-        const validMoves = getValidMoves(board, player);
-        const opp = player === BLACK ? WHITE : BLACK;
-
-        if (validMoves.length === 0) {
-            if (passed) return evaluateBoard(board, player);
-            return -negamax(board, depth, -beta, -alpha, opp, true);
-        }
-
-        if (depth === 0) return evaluateBoard(board, player);
-
-        let maxEval = -Infinity;
-        validMoves.sort((a, b) => WEIGHTS[b[0]][b[1]] - WEIGHTS[a[0]][a[1]]);
-
-        for (const [r, c] of validMoves) {
-            const newBoard = simulateMove(board, r, c, player);
-            const evalScore = -negamax(newBoard, depth - 1, -beta, -alpha, opp, false);
-            maxEval = Math.max(maxEval, evalScore);
-            alpha = Math.max(alpha, evalScore);
-            if (alpha >= beta) break;
-        }
-        tt.set(boardKey, { depth: depth, value: maxEval });
-        return maxEval;
-    }
-
-    function evaluateBoard(board, player) {
-        let score = 0;
-        const opp = player === BLACK ? WHITE : BLACK;
-        
-        // Positional weights
-        for (let r = 0; r < SIZE; r++) {
-            for (let c = 0; c < SIZE; c++) {
-                if (board[r][c] === player) score += WEIGHTS[r][c];
-                else if (board[r][c] === opp) score -= WEIGHTS[r][c];
-            }
-        }
-        
-        // Mobility
-        const myMoves = getValidMoves(board, player).length;
-        const oppMoves = getValidMoves(board, opp).length;
-        score += (myMoves - oppMoves) * 25;
-        
-        // Frontier discs penalty
-        let myFrontier = 0, oppFrontier = 0;
-        for (let r = 0; r < SIZE; r++) {
-            for (let c = 0; c < SIZE; c++) {
-                if (board[r][c] === EMPTY) continue;
-                let isFrontier = false;
-                for (const [dr, dc] of DIRS) {
-                    const nr = r + dr, nc = c + dc;
-                    if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === EMPTY) { isFrontier = true; break; }
-                }
-                if (isFrontier) { if (board[r][c] === player) myFrontier++; else oppFrontier++; }
-            }
-        }
-        score -= (myFrontier - oppFrontier) * 15;
-        return score;
-    }
-
-    function boardToString(board) { let s = ''; for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) s += board[r][c]; return s; }
-
-    function getValidMoves(board, player) {
-        const opp = player === BLACK ? WHITE : BLACK; const moves = [];
-        for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-            if (board[r][c] !== EMPTY) continue;
-            for (const [dr, dc] of DIRS) {
-                let nr = r + dr, nc = c + dc, found = false;
-                while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === opp) { nr += dr; nc += dc; found = true; }
-                if (found && nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === player) { moves.push([r, c]); break; }
-            }
-        }
-        return moves;
-    }
-
-    function simulateMove(board, r, c, player) {
-        const nb = board.map(row => [...row]); nb[r][c] = player; const opp = player === BLACK ? WHITE : BLACK;
-        for (const [dr, dc] of DIRS) {
-            let nr = r + dr, nc = c + dc; const toFlip = [];
-            while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && nb[nr][nc] === opp) { toFlip.push([nr, nc]); nr += dr; nc += dc; }
-            if (toFlip.length && nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && nb[nr][nc] === player) { for (const [fr, fc] of toFlip) nb[fr][fc] = player; }
-        }
-        return nb;
-    }
-`;
-
-let abWorker = null;
-function initAlphaBeta() {
-    if (abWorker) return;
-    const blob = new Blob([abWorkerCode], { type: 'application/javascript' });
-    abWorker = new Worker(URL.createObjectURL(blob));
-    abWorker.onmessage = function(event) {
-        isBotThinking = false;
-        const move = event.data.move;
-        if (move && move.length === 2) {
-            applyBotMove(move[0] * SIZE + move[1]);
-        } else {
-            document.getElementById('status').textContent = '⚠️ ربات پاس داد.';
-            setTimeout(passTurn, 1000);
-        }
-    };
-}
-
-function askAlphaBeta() {
-    if (gameOver || isBotThinking) return;
-    initAlphaBeta();
-    isBotThinking = true;
-    document.getElementById('status').textContent = 'موتور آلفا-بتا در حال محاسبه...';
-    document.getElementById('status').style.color = '#f1c40f';
-    abWorker.postMessage({ board: board, player: aiColor });
-}
-
-// ============================================================
-// منطق مشترک بازی
-// ============================================================
-function applyBotMove(moveIdx) {
-    if (moveIdx < 0 || moveIdx >= SIZE * SIZE) return;
-    const r = Math.floor(moveIdx / SIZE);
-    const c = moveIdx % SIZE;
-    
-    board = simulateMove(board, r, c, aiColor);
-    moveHistory.push(moveIdx); 
-    lastBotMove = { r, c };
-    currentPlayer = myColor;
-    
-    renderBoard();
-    document.getElementById('status').textContent = '✅ ربات حرکت کرد.';
-    document.getElementById('status').style.color = '#2ecc71';
-    
-    setTimeout(() => { if (!gameOver) checkTurn(); }, 800);
+    // 🔥 ارسال فقط و فقط آرایه تاریخچه حرکات (مطابق سورس رسمی)
+    oracleWorker.postMessage(moveHistory);
 }
 
 function createEmptyBoard() { return Array.from({ length: SIZE }, () => Array(SIZE).fill(EMPTY)); }
+
 function initBoard() {
     board = createEmptyBoard();
     board[2][2] = WHITE; board[2][3] = BLACK;
     board[3][2] = BLACK; board[3][3] = WHITE;
     moveHistory = []; 
 }
+
 function isOnBoard(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
 function getValidMoves(board, player) {
-    const opp = player === BLACK ? WHITE : BLACK; const moves = [];
-    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-        if (board[r][c] !== EMPTY) continue;
-        for (const [dr, dc] of DIRS) {
-            let nr = r + dr, nc = c + dc, found = false;
-            while (isOnBoard(nr, nc) && board[nr][nc] === opp) { nr += dr; nc += dc; found = true; }
-            if (found && isOnBoard(nr, nc) && board[nr][nc] === player) { moves.push([r, c]); break; }
+    const opp = player === BLACK ? WHITE : BLACK;
+    const moves = [];
+    for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+            if (board[r][c] !== EMPTY) continue;
+            for (const [dr, dc] of DIRS) {
+                let nr = r + dr, nc = c + dc, found = false;
+                while (isOnBoard(nr, nc) && board[nr][nc] === opp) { nr += dr; nc += dc; found = true; }
+                if (found && isOnBoard(nr, nc) && board[nr][nc] === player) { moves.push([r, c]); break; }
+            }
         }
     }
     return moves;
 }
 function simulateMove(board, r, c, player) {
-    const nb = board.map(row => [...row]); nb[r][c] = player; const opp = player === BLACK ? WHITE : BLACK;
+    const nb = board.map(row => [...row]);
+    nb[r][c] = player;
+    const opp = player === BLACK ? WHITE : BLACK;
     for (const [dr, dc] of DIRS) {
-        let nr = r + dr, nc = c + dc; const toFlip = [];
+        let nr = r + dr, nc = c + dc;
+        const toFlip = [];
         while (isOnBoard(nr, nc) && nb[nr][nc] === opp) { toFlip.push([nr, nc]); nr += dr; nc += dc; }
-        if (toFlip.length && isOnBoard(nr, nc) && nb[nr][nc] === player) { for (const [fr, fc] of toFlip) nb[fr][fc] = player; }
+        if (toFlip.length && isOnBoard(nr, nc) && nb[nr][nc] === player) {
+            for (const [fr, fc] of toFlip) nb[fr][fc] = player;
+        }
     }
     return nb;
 }
 function countPieces(board) {
     let black = 0, white = 0;
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-        if (board[r][c] === BLACK) black++; else if (board[r][c] === WHITE) white++;
+        if (board[r][c] === BLACK) black++;
+        else if (board[r][c] === WHITE) white++;
     }
     return { black, white };
 }
-
 function passTurn() {
     currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
     lastBotMove = null; 
     renderBoard(); 
     checkTurn();
 }
-
 function checkTurn() {
     if (gameOver) return;
     const validMoves = getValidMoves(board, currentPlayer);
@@ -444,7 +653,7 @@ function checkTurn() {
             document.getElementById('status').textContent = msg; 
             document.getElementById('status').style.color = '#2ecc71';
         } else {
-            document.getElementById('status').textContent = 'پاس داده شد.';
+            document.getElementById('status').textContent = 'حرکتی وجود ندارد! پاس داده شد.';
             currentPlayer = otherPlayer;
             setTimeout(checkTurn, 1000);
         }
@@ -457,53 +666,72 @@ function checkTurn() {
         renderBoard(); 
     } else {
         renderBoard(); 
-        // انتخاب موتور
-        if (aiColor === WHITE) { askOracle(); } else { askAlphaBeta(); }
+        askOracle(); 
     }
 }
-
 function renderBoard() {
-    const boardEl = document.getElementById('board'); boardEl.innerHTML = '';
+    const boardEl = document.getElementById('board'); 
+    boardEl.innerHTML = '';
     const validMoves = gameOver ? [] : getValidMoves(board, currentPlayer);
     
     for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
-            const cell = document.createElement('div'); cell.className = 'cell';
-            if (board[r][c] === BLACK) cell.classList.add('black'); else if (board[r][c] === WHITE) cell.classList.add('white');
-            if (lastBotMove && lastBotMove.r === r && lastBotMove.c === c) cell.classList.add('last-bot-move');
+            const cell = document.createElement('div'); 
+            cell.className = 'cell';
+            
+            if (board[r][c] === BLACK) cell.classList.add('black'); 
+            else if (board[r][c] === WHITE) cell.classList.add('white');
+            
+            if (lastBotMove && lastBotMove.r === r && lastBotMove.c === c) {
+                cell.classList.add('last-bot-move');
+            }
             
             if (!gameOver && validMoves.some(([vr, vc]) => vr === r && vc === c)) {
-                if (currentPlayer === myColor) { cell.classList.add('valid-move'); cell.onclick = () => handleMove(r, c); } else { cell.classList.add('disabled'); }
-            } else { cell.classList.add('disabled'); }
+                if (currentPlayer === myColor) {
+                    cell.classList.add('valid-move'); 
+                    cell.onclick = () => handleMove(r, c); 
+                } else {
+                    cell.classList.add('disabled'); 
+                }
+            } else {
+                cell.classList.add('disabled');
+            }
             boardEl.appendChild(cell);
         }
     }
     updateScore();
 }
-
 function updateScore() {
     const { black, white } = countPieces(board);
-    document.getElementById('scoreBlack').textContent = black; document.getElementById('scoreWhite').textContent = white;
+    document.getElementById('scoreBlack').textContent = black; 
+    document.getElementById('scoreWhite').textContent = white;
 }
-
 function handleMove(r, c) {
-    if (gameOver || isBotThinking || currentPlayer !== myColor) return;
+    if (gameOver || isOracleThinking || currentPlayer !== myColor) return;
+    
     board = simulateMove(board, r, c, currentPlayer);
+    // 🔥 ثبت ایندکس حرکت (col + row * 6)
     moveHistory.push(c + r * SIZE);
     lastBotMove = null; 
+    
     currentPlayer = aiColor; 
     renderBoard(); 
     checkTurn();
 }
-
 function startGame(color) {
-    myColor = color; aiColor = color === BLACK ? WHITE : BLACK;
+    myColor = color; 
+    aiColor = color === BLACK ? WHITE : BLACK;
     document.getElementById('colorOverlay').style.display = 'none';
-    initBoard(); currentPlayer = BLACK; gameOver = false; isBotThinking = false; lastBotMove = null; 
+    
+    initBoard(); 
+    currentPlayer = BLACK; 
+    gameOver = false; 
+    isOracleThinking = false; 
+    lastBotMove = null; 
+    
     renderBoard(); 
     checkTurn(); 
 }
-
 initBoard(); renderBoard();
 </script>
 </body>
