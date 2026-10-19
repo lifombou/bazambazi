@@ -3,124 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>اتللو ۶×۶ - ربات ترکیبی</title>
+    <title>اتللو ۶×۶ - ربات ترکیبی نهایی</title>
     <link rel="icon" href="data:,">
     <style>
-        body {
-            font-family: Tahoma, sans-serif;
-            background-color: #1a1a2e;
-            color: #e0e0e0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 10px;
-            margin: 0;
-            user-select: none;
-            min-height: 100vh;
-        }
+        body { font-family: Tahoma, sans-serif; background-color: #1a1a2e; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; user-select: none; min-height: 100vh; }
         h1 { color: #e94560; font-size: 1.2rem; margin-bottom: 5px; margin-top: 10px;}
         .subtitle { color: #888; font-size: 0.8rem; margin-bottom: 15px; text-align: center; }
-
-        #board-container {
-            background-color: #16213e;
-            padding: 10px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-        }
-
-        #board {
-            display: grid;
-            grid-template-columns: repeat(6, min(55px, 13vw));
-            grid-template-rows: repeat(6, min(55px, 13vw));
-            gap: 3px;
-            background-color: #0f3460;
-            padding: 6px;
-            border-radius: 8px;
-        }
-
-        .cell {
-            width: 100%;
-            height: 100%;
-            background-color: #27ae60;
-            border-radius: 6px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            cursor: default; 
-            transition: all 0.2s ease;
-            position: relative;
-        }
-        
+        #board-container { background-color: #16213e; padding: 10px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        #board { display: grid; grid-template-columns: repeat(6, min(55px, 13vw)); grid-template-rows: repeat(6, min(55px, 13vw)); gap: 3px; background-color: #0f3460; padding: 6px; border-radius: 8px; }
+        .cell { width: 100%; height: 100%; background-color: #27ae60; border-radius: 6px; display: flex; justify-content: center; align-items: center; cursor: default; transition: all 0.2s ease; position: relative; }
         .cell.disabled { cursor: not-allowed; }
-
-        .cell.valid-move {
-            cursor: pointer;
-            box-shadow: inset 0 0 0 3px #3498db;
-        }
-        .cell.valid-move:hover {
-            background-color: #2ecc71;
-        }
-
-        .cell.black::after, .cell.white::after {
-            content: '';
-            width: 75%;
-            height: 75%;
-            border-radius: 50%;
-            transition: all 0.2s;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
-            z-index: 2;
-            pointer-events: none;
-        }
+        .cell.valid-move { cursor: pointer; box-shadow: inset 0 0 0 3px #3498db; }
+        .cell.valid-move:hover { background-color: #2ecc71; }
+        .cell.black::after, .cell.white::after { content: ''; width: 75%; height: 75%; border-radius: 50%; transition: all 0.2s; box-shadow: 0 3px 6px rgba(0,0,0,0.4); z-index: 2; pointer-events: none; }
         .cell.black::after { background: radial-gradient(circle at 35% 35%, #555, #111); }
         .cell.white::after { background: radial-gradient(circle at 35% 35%, #fff, #ccc); }
-
-        .cell.last-bot-move::before {
-            content: '';
-            position: absolute;
-            width: 85%;
-            height: 85%;
-            border-radius: 50%;
-            border: 3px dashed #f1c40f;
-            z-index: 3;
-            animation: pulse 1.5s infinite;
-            pointer-events: none;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(0.95); opacity: 0.8; }
-            50% { transform: scale(1.05); opacity: 1; }
-            100% { transform: scale(0.95); opacity: 0.8; }
-        }
-
-        .panel {
-            display: flex;
-            gap: 15px;
-            margin-top: 15px;
-            font-size: 1rem;
-            background: #0f3460;
-            padding: 10px 20px;
-            border-radius: 8px;
-            align-items: center;
-        }
+        .cell.last-bot-move::before { content: ''; position: absolute; width: 85%; height: 85%; border-radius: 50%; border: 3px dashed #f1c40f; z-index: 3; animation: pulse 1.5s infinite; pointer-events: none; }
+        @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }
+        .panel { display: flex; gap: 15px; margin-top: 15px; font-size: 1rem; background: #0f3460; padding: 10px 20px; border-radius: 8px; align-items: center; }
         .score-black { color: #111; font-weight: bold; background: #eee; padding: 2px 8px; border-radius: 4px; }
         .score-white { color: #111; font-weight: bold; background: #fff; padding: 2px 8px; border-radius: 4px; }
-
         #status { margin-top: 15px; font-size: 0.95rem; color: #f1c40f; min-height: 25px; text-align: center; padding: 0 10px; font-weight: bold;}
-
-        .overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 100;
-            color: #fff; font-family: Tahoma;
-        }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; color: #fff; font-family: Tahoma; }
         .overlay h2 { color: #e94560; margin-bottom: 10px; }
         .overlay p { margin-bottom: 20px; text-align: center; padding: 0 20px; }
         .overlay button { margin: 8px; width: 220px; padding: 12px; font-size: 1rem; cursor: pointer; border-radius: 8px; border: none; background: #e94560; color: white; }
         .overlay button:hover { background-color: #c0392b; }
-
-        /* ================= GATE STYLES ================= */
-        body.locked{overflow:hidden;}
-        body.locked #app{display:none !important;}
+        
+        /* GATE STYLES */
+        body.locked{overflow:hidden;} body.locked #app{display:none !important;}
         #gate{ position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center; padding:20px; background:radial-gradient(1200px 600px at 50% -10%, #26324a, #141a24 60%, #0f131a 100%); direction:rtl; }
         body:not(.locked) #gate{display:none;}
         .gate-card{ width:100%; max-width:420px; background:#242c3d; border-radius:16px; padding:28px 24px 22px; box-shadow:0 20px 60px rgba(0,0,0,.6); text-align:center; color:#e8edf5; }
@@ -154,7 +65,7 @@
 <div id="app">
     <div class="overlay" id="colorOverlay">
         <h2>شما چه رنگی هستید؟</h2>
-        <p>شما در برابر یک ربات شکست‌ناپذیر بازی می‌کنید.</p>
+        <p>شما در برابر ربات شکست‌ناپذیر بازی می‌کنید.</p>
         <button onclick="startGame(1)">⚫ من سیاه هستم (شروع‌کننده)</button>
         <button onclick="startGame(2)">⚪ من سفید هستم</button>
     </div>
@@ -175,114 +86,48 @@
 </div>
 
 <script>
-// ============================================================
-// کدهای امنیتی شما (بدون تغییر)
-// ============================================================
+// کدهای امنیتی Gate
 (function(){
   'use strict';
   const API_BASE   = 'https://fra.cloud.appwrite.io/v1';
   const PROJECT_ID = '6ac18432000eb4377dad';
   const DB_ID      = '6ac188ac002436bf9010';
   const TABLE_ID   = '6ac1895e001bfb64bdfb'; 
-  const GUEST_HOURS = 0.5;
-  const GUEST_ONCE_PER_DEVICE = true;
-  const DEVICE_LOCK = true;
-  const USER_SESSION_HOURS = null;
-  const ACCESS_PREFIX = 'mot_access_';
-  const SESSION_KEY   = 'mot_session_v1';
-
+  const GUEST_HOURS = 0.5; const GUEST_ONCE_PER_DEVICE = true; const DEVICE_LOCK = true; const USER_SESSION_HOURS = null;
+  const ACCESS_PREFIX = 'mot_access_'; const SESSION_KEY   = 'mot_session_v1';
   function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
   function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
   function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
-
   async function getDeviceFingerprint() {
     const parts = [navigator.userAgent || '', navigator.language || '', navigator.platform || '', String(navigator.hardwareConcurrency || 0), String(navigator.maxTouchPoints || 0), String(screen.width) + 'x' + String(screen.height), String(screen.colorDepth || 0), String(window.devicePixelRatio || 1)];
     try { parts.push(Intl.DateTimeFormat().resolvedOptions().timeZone || ''); } catch(e){}
     parts.push(String(new Date().getTimezoneOffset()));
-    try {
-      const c = document.createElement('canvas'); c.width = 200; c.height = 40;
-      const cx = c.getContext('2d'); cx.textBaseline = 'top'; cx.font = '14px Arial';
-      cx.fillStyle = '#f60'; cx.fillRect(10, 5, 80, 25); cx.fillStyle = '#069'; cx.fillText('MotGate', 15, 10);
-      parts.push(c.toDataURL());
-    } catch(e){ parts.push('canvas_err'); }
-    let str = parts.join('|||'); let h = 5381;
-    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
-    return 'fp_' + Math.abs(h).toString(36);
+    try { const c = document.createElement('canvas'); c.width = 200; c.height = 40; const cx = c.getContext('2d'); cx.textBaseline = 'top'; cx.font = '14px Arial'; cx.fillStyle = '#f60'; cx.fillRect(10, 5, 80, 25); cx.fillStyle = '#069'; cx.fillText('MotGate', 15, 10); parts.push(c.toDataURL()); } catch(e){ parts.push('canvas_err'); }
+    let str = parts.join('|||'); let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return 'fp_' + Math.abs(h).toString(36);
   }
-
   function apiHeaders() { return { 'X-Appwrite-Project': PROJECT_ID, 'Content-Type': 'application/json', 'Accept': 'application/json' }; }
-  async function apiGetRow(rowId) {
-    const res = await fetch(API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId), { headers: apiHeaders() });
-    if (res.status === 404) return null; if (!res.ok) throw new Error('API ' + res.status); return await res.json();
-  }
-  async function apiUpdateRow(rowId, fields) {
-    await fetch(API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId), { method: 'PATCH', headers: apiHeaders(), body: JSON.stringify({ data: fields }) });
-  }
-  async function apiCreateRow(rowId, fields) {
-    await fetch(API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows', { method: 'POST', headers: apiHeaders(), body: JSON.stringify({ rowId: rowId, data: fields }) });
-  }
-
+  async function apiGetRow(rowId) { const res = await fetch(API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId), { headers: apiHeaders() }); if (res.status === 404) return null; if (!res.ok) throw new Error('API ' + res.status); return await res.json(); }
+  async function apiUpdateRow(rowId, fields) { await fetch(API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows/' + encodeURIComponent(rowId), { method: 'PATCH', headers: apiHeaders(), body: JSON.stringify({ data: fields }) }); }
+  async function apiCreateRow(rowId, fields) { await fetch(API_BASE + '/tablesdb/' + DB_ID + '/tables/' + TABLE_ID + '/rows', { method: 'POST', headers: apiHeaders(), body: JSON.stringify({ rowId: rowId, data: fields }) }); }
   function loadSession(){ try { return JSON.parse(lsGet(SESSION_KEY) || 'null'); } catch(e){ return null; } }
   function saveSession(s){ lsSet(SESSION_KEY, JSON.stringify(s)); }
   function clearSession(){ lsDel(SESSION_KEY); }
   function isExpired(s){ if(!s) return true; if(s.expiresAt == null) return false; return Date.now() >= s.expiresAt; }
-
   function lock(){ document.body.classList.add('locked'); const sb = document.getElementById('sessionBar'); if (sb) sb.classList.add('hidden'); }
   function unlock(){ document.body.classList.remove('locked'); startSessionBar(); }
-
-  function startSessionBar(){
-    const bar = document.getElementById('sessionBar'); const info = document.getElementById('sessionInfo');
-    if (!bar || !info) return; bar.classList.remove('hidden');
-    setInterval(() => {
-      const s = loadSession(); if(!s || isExpired(s)){ clearSession(); lock(); return; }
-      let txt = '<b>' + s.name + '</b>';
-      if(s.type === 'guest' && s.expiresAt){
-        const left = s.expiresAt - Date.now(); if(left <= 0){ clearSession(); lock(); return; }
-        txt += ' — مهمان (' + Math.floor(left / 60000) + ' دقیقه)';
-      } else { txt += ' — دسترسی نامحدود'; }
-      info.innerHTML = txt;
-    }, 1000);
-  }
-
-  async function loginWithPassword(pass){
-    const msg = document.getElementById('gateMsg'); msg.textContent = '';
-    if(!pass){ msg.textContent = 'رمز را وارد کنید.'; return; }
-    try {
-      let row = await apiGetRow(pass).catch(() => null);
-      if (!row) { msg.textContent = 'رمز اشتباه است.'; return; }
-      if (row.banned === true) { msg.textContent = 'دسترسی مسدود است.'; return; }
-      const fp = await getDeviceFingerprint();
-      if (DEVICE_LOCK && (!row.deviceId || row.deviceId === '')) { try { await apiUpdateRow(pass, { deviceId: fp }); } catch(e){} }
-      saveSession({ name: 'کاربر', type: 'user', password: pass, startedAt: Date.now(), expiresAt: null });
-      msg.textContent = 'خوش آمدید...'; setTimeout(unlock, 250);
-    } catch (err) { msg.textContent = 'خطای شبکه.'; }
-  }
-
-  async function loginAsGuest(){
-    const msg = document.getElementById('gateGuestMsg'); msg.textContent = '';
-    try {
-      const fp = await getDeviceFingerprint(); const guestKey = 'guest_' + fp;
-      if (GUEST_ONCE_PER_DEVICE) {
-        const existing = await apiGetRow(guestKey).catch(() => null);
-        if (existing) { msg.textContent = 'قبلاً استفاده شده.'; return; }
-        try { await apiCreateRow(guestKey, { deviceId: fp }); } catch(e){}
-      }
-      saveSession({ name: 'مهمان', type: 'guest', startedAt: Date.now(), expiresAt: Date.now() + GUEST_HOURS * 3600000 });
-      msg.textContent = 'در حال ورود...'; setTimeout(unlock, 250);
-    } catch (err) { msg.textContent = 'خطای شبکه.'; }
-  }
-
+  function startSessionBar(){ const bar = document.getElementById('sessionBar'); const info = document.getElementById('sessionInfo'); if (!bar || !info) return; bar.classList.remove('hidden'); setInterval(() => { const s = loadSession(); if(!s || isExpired(s)){ clearSession(); lock(); return; } let txt = '<b>' + s.name + '</b>'; if(s.type === 'guest' && s.expiresAt){ const left = s.expiresAt - Date.now(); if(left <= 0){ clearSession(); lock(); return; } txt += ' — مهمان (' + Math.floor(left / 60000) + ' دقیقه)'; } else { txt += ' — دسترسی نامحدود'; } info.innerHTML = txt; }, 1000); }
+  async function loginWithPassword(pass){ const msg = document.getElementById('gateMsg'); msg.textContent = ''; if(!pass){ msg.textContent = 'رمز را وارد کنید.'; return; } try { let row = await apiGetRow(pass).catch(() => null); if (!row) { msg.textContent = 'رمز اشتباه است.'; return; } if (row.banned === true) { msg.textContent = 'دسترسی مسدود است.'; return; } const fp = await getDeviceFingerprint(); if (DEVICE_LOCK && (!row.deviceId || row.deviceId === '')) { try { await apiUpdateRow(pass, { deviceId: fp }); } catch(e){} } saveSession({ name: 'کاربر', type: 'user', password: pass, startedAt: Date.now(), expiresAt: null }); msg.textContent = 'خوش آمدید...'; setTimeout(unlock, 250); } catch (err) { msg.textContent = 'خطای شبکه.'; } }
+  async function loginAsGuest(){ const msg = document.getElementById('gateGuestMsg'); msg.textContent = ''; try { const fp = await getDeviceFingerprint(); const guestKey = 'guest_' + fp; if (GUEST_ONCE_PER_DEVICE) { const existing = await apiGetRow(guestKey).catch(() => null); if (existing) { msg.textContent = 'قبلاً استفاده شده.'; return; } try { await apiCreateRow(guestKey, { deviceId: fp }); } catch(e){} } saveSession({ name: 'مهمان', type: 'guest', startedAt: Date.now(), expiresAt: Date.now() + GUEST_HOURS * 3600000 }); msg.textContent = 'در حال ورود...'; setTimeout(unlock, 250); } catch (err) { msg.textContent = 'خطای شبکه.'; } }
   document.getElementById('gateLogin').onclick = () => loginWithPassword(document.getElementById('gatePass').value.trim());
   document.getElementById('gateGuest').onclick = loginAsGuest;
   document.getElementById('logoutBtn').onclick = () => { clearSession(); lock(); };
-
   const s = loadSession(); if(s && !isExpired(s)) unlock(); else { clearSession(); lock(); }
 })();
 </script>
 
 <script>
 // ============================================================
-// سیستم ترکیبی: اوراکل برای سفید + آلفا-بتا برای سیاه
+// سیستم ترکیبی نهایی
 // ============================================================
 const SIZE = 6;
 const EMPTY = 0, BLACK = 1, WHITE = 2;
@@ -298,45 +143,49 @@ let lastBotMove = null;
 let moveHistory = []; 
 
 // ============================================================
-// موتور اول: اتصال به اوراکل (برای سفید)
+// موتور اول: اوراکل (برای سفید)
 // ============================================================
 let oracleWorker = null;
 
-function initOracle() {
+async function initOracle() {
     if (oracleWorker) return;
     try {
-        // 🔥 لود کردن مستقیم به عنوان ماژول (بدون Blob) برای جلوگیری از خطای import
-        oracleWorker = new Worker('assets/worker.js', { type: 'module' });
+        const response = await fetch('assets/worker.js');
+        if (!response.ok) throw new Error('Worker not found');
+        let code = await response.text();
+        
+        const assetsBaseUrl = new URL('assets/', window.location.href).href;
+        code = code.replace(/import\.meta\.url/g, JSON.stringify(assetsBaseUrl));
+        
+        const blob = new Blob([code], { type: 'application/javascript' });
+        oracleWorker = new Worker(URL.createObjectURL(blob));
         
         oracleWorker.onmessage = function(event) {
             isBotThinking = false;
             const responseData = event.data;
             let moveIdx = -1;
 
-            // پردازش پاسخ اوراکل
             if (Array.isArray(responseData)) {
                 const ret = responseData[1];
-                if (Array.isArray(ret)) moveIdx = ret[0]; // برای سیاه
-                else if (typeof ret === 'number') moveIdx = ret; // برای سفید
+                if (Array.isArray(ret)) moveIdx = ret[0];
+                else if (typeof ret === 'number') moveIdx = ret;
             }
 
             if (moveIdx >= 0 && moveIdx < SIZE * SIZE) {
                 applyBotMove(moveIdx);
             } else {
                 document.getElementById('status').textContent = '⚠️ اوراکل پاس داد.';
-                document.getElementById('status').style.color = '#e74c3c';
                 setTimeout(passTurn, 1000);
             }
         };
-        
         oracleWorker.onerror = (e) => {
             console.error("Oracle Error:", e);
-            document.getElementById('status').textContent = 'خطای داخلی اوراکل.';
+            document.getElementById('status').textContent = 'خطای اوراکل.';
             isBotThinking = false;
             setTimeout(passTurn, 1000);
         };
     } catch(e) { 
-        console.error("Failed to load Oracle Worker:", e); 
+        console.error("Failed to load Oracle:", e); 
         document.getElementById('status').textContent = 'خطا در بارگذاری اوراکل.';
         isBotThinking = false;
     }
@@ -344,20 +193,19 @@ function initOracle() {
 
 function askOracle() {
     if (gameOver || isBotThinking) return;
-    initOracle();
-    if (!oracleWorker) return;
-
-    isBotThinking = true;
-    document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
-    document.getElementById('status').style.color = '#f1c40f';
-
-    oracleWorker.postMessage(moveHistory);
+    initOracle().then(() => {
+        if (!oracleWorker) return;
+        isBotThinking = true;
+        document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
+        document.getElementById('status').style.color = '#f1c40f';
+        oracleWorker.postMessage([0, moveHistory]);
+    });
 }
 
 // ============================================================
-// موتور دوم: هوش مصنوعی داخلی آلفا-بتا (برای سیاه)
+// موتور دوم: آلفا-بتا (برای سیاه)
 // ============================================================
-const alphaBetaWorkerCode = `
+const abWorkerCode = `
     const SIZE = 6;
     const EMPTY = 0, BLACK = 1, WHITE = 2;
     const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
@@ -442,7 +290,6 @@ const alphaBetaWorkerCode = `
         let score = 0;
         const opp = player === BLACK ? WHITE : BLACK;
         
-        // Positional weights
         for (let r = 0; r < SIZE; r++) {
             for (let c = 0; c < SIZE; c++) {
                 if (board[r][c] === player) score += WEIGHTS[r][c];
@@ -450,12 +297,10 @@ const alphaBetaWorkerCode = `
             }
         }
         
-        // Mobility
         const myMoves = getValidMoves(board, player).length;
         const oppMoves = getValidMoves(board, opp).length;
         score += (myMoves - oppMoves) * 25;
         
-        // Frontier discs penalty
         let myFrontier = 0, oppFrontier = 0;
         for (let r = 0; r < SIZE; r++) {
             for (let c = 0; c < SIZE; c++) {
@@ -463,71 +308,46 @@ const alphaBetaWorkerCode = `
                 let isFrontier = false;
                 for (const [dr, dc] of DIRS) {
                     const nr = r + dr, nc = c + dc;
-                    if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === EMPTY) {
-                        isFrontier = true; break;
-                    }
+                    if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === EMPTY) { isFrontier = true; break; }
                 }
-                if (isFrontier) {
-                    if (board[r][c] === player) myFrontier++;
-                    else oppFrontier++;
-                }
+                if (isFrontier) { if (board[r][c] === player) myFrontier++; else oppFrontier++; }
             }
         }
         score -= (myFrontier - oppFrontier) * 15;
-        
         return score;
     }
 
-    function boardToString(board) {
-        let s = '';
-        for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) s += board[r][c];
-        return s;
-    }
+    function boardToString(board) { let s = ''; for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) s += board[r][c]; return s; }
 
     function getValidMoves(board, player) {
-        const opp = player === BLACK ? WHITE : BLACK;
-        const moves = [];
-        for (let r = 0; r < SIZE; r++) {
-            for (let c = 0; c < SIZE; c++) {
-                if (board[r][c] !== EMPTY) continue;
-                for (const [dr, dc] of DIRS) {
-                    let nr = r + dr, nc = c + dc, found = false;
-                    while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === opp) {
-                        nr += dr; nc += dc; found = true;
-                    }
-                    if (found && nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === player) {
-                        moves.push([r, c]); break;
-                    }
-                }
+        const opp = player === BLACK ? WHITE : BLACK; const moves = [];
+        for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+            if (board[r][c] !== EMPTY) continue;
+            for (const [dr, dc] of DIRS) {
+                let nr = r + dr, nc = c + dc, found = false;
+                while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === opp) { nr += dr; nc += dc; found = true; }
+                if (found && nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === player) { moves.push([r, c]); break; }
             }
         }
         return moves;
     }
 
     function simulateMove(board, r, c, player) {
-        const nb = board.map(row => [...row]);
-        nb[r][c] = player;
-        const opp = player === BLACK ? WHITE : BLACK;
+        const nb = board.map(row => [...row]); nb[r][c] = player; const opp = player === BLACK ? WHITE : BLACK;
         for (const [dr, dc] of DIRS) {
-            let nr = r + dr, nc = c + dc;
-            const toFlip = [];
-            while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && nb[nr][nc] === opp) {
-                toFlip.push([nr, nc]); nr += dr; nc += dc;
-            }
-            if (toFlip.length && nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && nb[nr][nc] === player) {
-                for (const [fr, fc] of toFlip) nb[fr][fc] = player;
-            }
+            let nr = r + dr, nc = c + dc; const toFlip = [];
+            while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && nb[nr][nc] === opp) { toFlip.push([nr, nc]); nr += dr; nc += dc; }
+            if (toFlip.length && nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && nb[nr][nc] === player) { for (const [fr, fc] of toFlip) nb[fr][fc] = player; }
         }
         return nb;
     }
 `;
 
-const abWorkerBlob = new Blob([alphaBetaWorkerCode], { type: 'application/javascript' });
 let abWorker = null;
-
 function initAlphaBeta() {
     if (abWorker) return;
-    abWorker = new Worker(URL.createObjectURL(abWorkerBlob));
+    const blob = new Blob([abWorkerCode], { type: 'application/javascript' });
+    abWorker = new Worker(URL.createObjectURL(blob));
     abWorker.onmessage = function(event) {
         isBotThinking = false;
         const move = event.data.move;
@@ -546,7 +366,6 @@ function askAlphaBeta() {
     isBotThinking = true;
     document.getElementById('status').textContent = 'موتور آلفا-بتا در حال محاسبه...';
     document.getElementById('status').style.color = '#f1c40f';
-
     abWorker.postMessage({ board: board, player: aiColor });
 }
 
@@ -571,49 +390,38 @@ function applyBotMove(moveIdx) {
 }
 
 function createEmptyBoard() { return Array.from({ length: SIZE }, () => Array(SIZE).fill(EMPTY)); }
-
 function initBoard() {
     board = createEmptyBoard();
     board[2][2] = WHITE; board[2][3] = BLACK;
     board[3][2] = BLACK; board[3][3] = WHITE;
     moveHistory = []; 
 }
-
 function isOnBoard(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
 function getValidMoves(board, player) {
-    const opp = player === BLACK ? WHITE : BLACK;
-    const moves = [];
-    for (let r = 0; r < SIZE; r++) {
-        for (let c = 0; c < SIZE; c++) {
-            if (board[r][c] !== EMPTY) continue;
-            for (const [dr, dc] of DIRS) {
-                let nr = r + dr, nc = c + dc, found = false;
-                while (isOnBoard(nr, nc) && board[nr][nc] === opp) { nr += dr; nc += dc; found = true; }
-                if (found && isOnBoard(nr, nc) && board[nr][nc] === player) { moves.push([r, c]); break; }
-            }
+    const opp = player === BLACK ? WHITE : BLACK; const moves = [];
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+        if (board[r][c] !== EMPTY) continue;
+        for (const [dr, dc] of DIRS) {
+            let nr = r + dr, nc = c + dc, found = false;
+            while (isOnBoard(nr, nc) && board[nr][nc] === opp) { nr += dr; nc += dc; found = true; }
+            if (found && isOnBoard(nr, nc) && board[nr][nc] === player) { moves.push([r, c]); break; }
         }
     }
     return moves;
 }
 function simulateMove(board, r, c, player) {
-    const nb = board.map(row => [...row]);
-    nb[r][c] = player;
-    const opp = player === BLACK ? WHITE : BLACK;
+    const nb = board.map(row => [...row]); nb[r][c] = player; const opp = player === BLACK ? WHITE : BLACK;
     for (const [dr, dc] of DIRS) {
-        let nr = r + dr, nc = c + dc;
-        const toFlip = [];
+        let nr = r + dr, nc = c + dc; const toFlip = [];
         while (isOnBoard(nr, nc) && nb[nr][nc] === opp) { toFlip.push([nr, nc]); nr += dr; nc += dc; }
-        if (toFlip.length && isOnBoard(nr, nc) && nb[nr][nc] === player) {
-            for (const [fr, fc] of toFlip) nb[fr][fc] = player;
-        }
+        if (toFlip.length && isOnBoard(nr, nc) && nb[nr][nc] === player) { for (const [fr, fc] of toFlip) nb[fr][fc] = player; }
     }
     return nb;
 }
 function countPieces(board) {
     let black = 0, white = 0;
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-        if (board[r][c] === BLACK) black++;
-        else if (board[r][c] === WHITE) white++;
+        if (board[r][c] === BLACK) black++; else if (board[r][c] === WHITE) white++;
     }
     return { black, white };
 }
@@ -652,42 +460,23 @@ function checkTurn() {
         renderBoard(); 
     } else {
         renderBoard(); 
-        // 🔥 انتخاب موتور بر اساس رنگ
-        if (aiColor === WHITE) {
-            askOracle();
-        } else {
-            askAlphaBeta();
-        }
+        if (aiColor === WHITE) { askOracle(); } else { askAlphaBeta(); }
     }
 }
 
 function renderBoard() {
-    const boardEl = document.getElementById('board'); 
-    boardEl.innerHTML = '';
+    const boardEl = document.getElementById('board'); boardEl.innerHTML = '';
     const validMoves = gameOver ? [] : getValidMoves(board, currentPlayer);
     
     for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
-            const cell = document.createElement('div'); 
-            cell.className = 'cell';
-            
-            if (board[r][c] === BLACK) cell.classList.add('black'); 
-            else if (board[r][c] === WHITE) cell.classList.add('white');
-            
-            if (lastBotMove && lastBotMove.r === r && lastBotMove.c === c) {
-                cell.classList.add('last-bot-move');
-            }
+            const cell = document.createElement('div'); cell.className = 'cell';
+            if (board[r][c] === BLACK) cell.classList.add('black'); else if (board[r][c] === WHITE) cell.classList.add('white');
+            if (lastBotMove && lastBotMove.r === r && lastBotMove.c === c) cell.classList.add('last-bot-move');
             
             if (!gameOver && validMoves.some(([vr, vc]) => vr === r && vc === c)) {
-                if (currentPlayer === myColor) {
-                    cell.classList.add('valid-move'); 
-                    cell.onclick = () => handleMove(r, c); 
-                } else {
-                    cell.classList.add('disabled'); 
-                }
-            } else {
-                cell.classList.add('disabled');
-            }
+                if (currentPlayer === myColor) { cell.classList.add('valid-move'); cell.onclick = () => handleMove(r, c); } else { cell.classList.add('disabled'); }
+            } else { cell.classList.add('disabled'); }
             boardEl.appendChild(cell);
         }
     }
@@ -696,33 +485,23 @@ function renderBoard() {
 
 function updateScore() {
     const { black, white } = countPieces(board);
-    document.getElementById('scoreBlack').textContent = black; 
-    document.getElementById('scoreWhite').textContent = white;
+    document.getElementById('scoreBlack').textContent = black; document.getElementById('scoreWhite').textContent = white;
 }
 
 function handleMove(r, c) {
     if (gameOver || isBotThinking || currentPlayer !== myColor) return;
-    
     board = simulateMove(board, r, c, currentPlayer);
     moveHistory.push(c + r * SIZE);
     lastBotMove = null; 
-    
     currentPlayer = aiColor; 
     renderBoard(); 
     checkTurn();
 }
 
 function startGame(color) {
-    myColor = color; 
-    aiColor = color === BLACK ? WHITE : BLACK;
+    myColor = color; aiColor = color === BLACK ? WHITE : BLACK;
     document.getElementById('colorOverlay').style.display = 'none';
-    
-    initBoard(); 
-    currentPlayer = BLACK; 
-    gameOver = false; 
-    isBotThinking = false; 
-    lastBotMove = null; 
-    
+    initBoard(); currentPlayer = BLACK; gameOver = false; isBotThinking = false; lastBotMove = null; 
     renderBoard(); 
     checkTurn(); 
 }
