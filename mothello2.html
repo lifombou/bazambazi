@@ -130,7 +130,7 @@
 
 <script>
 // ============================================================
-// منطق بازی و اتصال به اوراکل (بدون تغییر) + آلفا-بتا برای سیاه
+// کد اصلی بازی
 // ============================================================
 const SIZE = 6;
 const EMPTY = 0, BLACK = 1, WHITE = 2;
@@ -145,13 +145,12 @@ let isOracleThinking = false;
 let lastBotMove = null; 
 let moveHistory = []; 
 
+// ============================================================
+// ۱. موتور اول: اوراکل (دقیقاً کدِ خودتان بدون تایم‌اوت)
+// ============================================================
 let oracleWorker = null;
 let isWaitingForOracle = false;
-let oracleTimeout = null;
 
-// ============================================================
-// ۱. موتور اول: اوراکل (فقط برای سفید)
-// ============================================================
 function initOracleWorker() {
     if (oracleWorker) return;
     
@@ -161,7 +160,6 @@ function initOracleWorker() {
         
         oracleWorker.onmessage = function(event) {
             if (!isWaitingForOracle) return;
-            clearTimeout(oracleTimeout); // پاک کردن تایم‌اوت چون پاسخ آمد
             
             const [moves, ret] = event.data;
             isWaitingForOracle = false;
@@ -176,28 +174,28 @@ function initOracleWorker() {
                 const c = moveIdx % SIZE;
                 
                 board = simulateMove(board, r, c, aiColor);
-                moveHistory.push(moveIdx);
+                moveHistory.push(moveIdx); 
                 lastBotMove = { r, c };
                 currentPlayer = myColor;
                 
                 renderBoard();
-                document.getElementById('status').textContent = '✅ اوراکل حرکت کرد.';
+                document.getElementById('status').textContent = '✅ حرکت توسط اوراکل انجام شد.';
                 document.getElementById('status').style.color = '#2ecc71';
+                
                 setTimeout(() => { if (!gameOver) checkTurn(); }, 800);
             } else {
                 document.getElementById('status').textContent = '⚠️ اوراکل پاس داد.';
                 document.getElementById('status').style.color = '#e74c3c';
-                setTimeout(passTurn, 1000);
+                passTurn();
             }
         };
 
         oracleWorker.onerror = function(e) {
             isOracleThinking = false;
             isWaitingForOracle = false;
-            clearTimeout(oracleTimeout);
             console.error("Oracle Error:", e.message || e);
-            document.getElementById('status').textContent = '⚠️ خطای اوراکل.';
-            setTimeout(passTurn, 1000);
+            document.getElementById('status').textContent = '⚠️ خطای داخلی موتور اوراکل.';
+            document.getElementById('status').style.color = '#e74c3c';
         };
         
     } catch (err) {
@@ -209,23 +207,17 @@ function initOracleWorker() {
 
 function askOracle() {
     if (gameOver || isOracleThinking) return;
-    if (!oracleWorker) initOracleWorker();
-    if (!oracleWorker) return;
+    
+    if (!oracleWorker) {
+        initOracleWorker();
+        setTimeout(() => { if (currentPlayer === aiColor) askOracle(); }, 1000);
+        return;
+    }
 
     isOracleThinking = true;
     isWaitingForOracle = true;
     document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
     document.getElementById('status').style.color = '#f1c40f';
-
-    clearTimeout(oracleTimeout);
-    oracleTimeout = setTimeout(() => {
-        if (isWaitingForOracle) {
-            isWaitingForOracle = false;
-            isOracleThinking = false;
-            document.getElementById('status').textContent = 'زمان اوراکل تمام شد.';
-            setTimeout(passTurn, 1000);
-        }
-    }, 10000); // ۱۰ ثانیه تایم اوت
 
     oracleWorker.postMessage(moveHistory);
 }
@@ -318,7 +310,6 @@ const abWorkerCode = `
         let score = 0;
         const opp = player === BLACK ? WHITE : BLACK;
         
-        // وزن موقعیتی
         for (let r = 0; r < SIZE; r++) {
             for (let c = 0; c < SIZE; c++) {
                 if (board[r][c] === player) score += WEIGHTS[r][c];
@@ -326,12 +317,10 @@ const abWorkerCode = `
             }
         }
         
-        // تحرک (Mobility)
         const myMoves = getValidMoves(board, player).length;
         const oppMoves = getValidMoves(board, opp).length;
         score += (myMoves - oppMoves) * 25;
         
-        // جریمه مهره‌های مرزی
         let myFrontier = 0, oppFrontier = 0;
         for (let r = 0; r < SIZE; r++) {
             for (let c = 0; c < SIZE; c++) {
@@ -411,7 +400,7 @@ function askAlphaBeta() {
 }
 
 // ============================================================
-// ۳. منطق مشترک بازی
+// ۳. منطق مشترک بازی (دقیقاً کد شما)
 // ============================================================
 function createEmptyBoard() { return Array.from({ length: SIZE }, () => Array(SIZE).fill(EMPTY)); }
 function initBoard() {
@@ -482,12 +471,8 @@ function checkTurn() {
         renderBoard(); 
     } else {
         renderBoard(); 
-        // 🔥 انتخاب موتور بر اساس رنگ
-        if (aiColor === WHITE) { 
-            askOracle(); 
-        } else { 
-            askAlphaBeta(); 
-        }
+        // انتخاب موتور
+        if (aiColor === WHITE) { askOracle(); } else { askAlphaBeta(); }
     }
 }
 function renderBoard() {
