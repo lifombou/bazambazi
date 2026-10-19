@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>اتللو ۶×۶ - ربات ترکیبی نهایی</title>
+    <title>اتللو ۶×۶ - ربات ترکیبی</title>
     <link rel="icon" href="data:,">
     <style>
         body { font-family: Tahoma, sans-serif; background-color: #1a1a2e; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; user-select: none; min-height: 100vh; }
@@ -30,7 +30,6 @@
         .overlay button { margin: 8px; width: 220px; padding: 12px; font-size: 1rem; cursor: pointer; border-radius: 8px; border: none; background: #e94560; color: white; }
         .overlay button:hover { background-color: #c0392b; }
         
-        /* GATE STYLES */
         body.locked{overflow:hidden;} body.locked #app{display:none !important;}
         #gate{ position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center; padding:20px; background:radial-gradient(1200px 600px at 50% -10%, #26324a, #141a24 60%, #0f131a 100%); direction:rtl; }
         body:not(.locked) #gate{display:none;}
@@ -65,7 +64,7 @@
 <div id="app">
     <div class="overlay" id="colorOverlay">
         <h2>شما چه رنگی هستید؟</h2>
-        <p>شما در برابر ربات شکست‌ناپذیر بازی می‌کنید.</p>
+        <p>شما در برابر ربات ترکیبی بازی می‌کنید.</p>
         <button onclick="startGame(1)">⚫ من سیاه هستم (شروع‌کننده)</button>
         <button onclick="startGame(2)">⚪ من سفید هستم</button>
     </div>
@@ -86,7 +85,7 @@
 </div>
 
 <script>
-// کدهای امنیتی Gate
+// کدهای امنیتی
 (function(){
   'use strict';
   const API_BASE   = 'https://fra.cloud.appwrite.io/v1';
@@ -127,7 +126,7 @@
 
 <script>
 // ============================================================
-// سیستم ترکیبی نهایی
+// سیستم ترکیبی: اوراکل برای سفید + آلفا-بتا برای سیاه
 // ============================================================
 const SIZE = 6;
 const EMPTY = 0, BLACK = 1, WHITE = 2;
@@ -147,18 +146,11 @@ let moveHistory = [];
 // ============================================================
 let oracleWorker = null;
 
-async function initOracle() {
+function initOracle() {
     if (oracleWorker) return;
     try {
-        const response = await fetch('assets/worker.js');
-        if (!response.ok) throw new Error('Worker not found');
-        let code = await response.text();
-        
-        const assetsBaseUrl = new URL('assets/', window.location.href).href;
-        code = code.replace(/import\.meta\.url/g, JSON.stringify(assetsBaseUrl));
-        
-        const blob = new Blob([code], { type: 'application/javascript' });
-        oracleWorker = new Worker(URL.createObjectURL(blob));
+        // 🔥 لود مستقیم به عنوان ماژول (دقیقاً مثل نسخه‌ای که کار می‌کرد)
+        oracleWorker = new Worker('assets/worker.js', { type: 'module' });
         
         oracleWorker.onmessage = function(event) {
             isBotThinking = false;
@@ -166,7 +158,7 @@ async function initOracle() {
             let moveIdx = -1;
 
             if (Array.isArray(responseData)) {
-                const ret = responseData[1];
+                const ret = responseData[1]; // [id, [move, score]] or [id, [move]]
                 if (Array.isArray(ret)) moveIdx = ret[0];
                 else if (typeof ret === 'number') moveIdx = ret;
             }
@@ -175,31 +167,33 @@ async function initOracle() {
                 applyBotMove(moveIdx);
             } else {
                 document.getElementById('status').textContent = '⚠️ اوراکل پاس داد.';
+                document.getElementById('status').style.color = '#e74c3c';
                 setTimeout(passTurn, 1000);
             }
         };
+        
         oracleWorker.onerror = (e) => {
             console.error("Oracle Error:", e);
-            document.getElementById('status').textContent = 'خطای اوراکل.';
+            document.getElementById('status').textContent = '⚠️ خطای داخلی اوراکل!';
             isBotThinking = false;
             setTimeout(passTurn, 1000);
         };
     } catch(e) { 
         console.error("Failed to load Oracle:", e); 
-        document.getElementById('status').textContent = 'خطا در بارگذاری اوراکل.';
         isBotThinking = false;
     }
 }
 
 function askOracle() {
     if (gameOver || isBotThinking) return;
-    initOracle().then(() => {
-        if (!oracleWorker) return;
-        isBotThinking = true;
-        document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
-        document.getElementById('status').style.color = '#f1c40f';
-        oracleWorker.postMessage([0, moveHistory]);
-    });
+    if (!oracleWorker) initOracle();
+    if (!oracleWorker) return;
+
+    isBotThinking = true;
+    document.getElementById('status').textContent = 'اوراکل در حال محاسبه...';
+    document.getElementById('status').style.color = '#f1c40f';
+
+    oracleWorker.postMessage([0, moveHistory]);
 }
 
 // ============================================================
@@ -290,6 +284,7 @@ const abWorkerCode = `
         let score = 0;
         const opp = player === BLACK ? WHITE : BLACK;
         
+        // Positional weights
         for (let r = 0; r < SIZE; r++) {
             for (let c = 0; c < SIZE; c++) {
                 if (board[r][c] === player) score += WEIGHTS[r][c];
@@ -297,10 +292,12 @@ const abWorkerCode = `
             }
         }
         
+        // Mobility
         const myMoves = getValidMoves(board, player).length;
         const oppMoves = getValidMoves(board, opp).length;
         score += (myMoves - oppMoves) * 25;
         
+        // Frontier discs penalty
         let myFrontier = 0, oppFrontier = 0;
         for (let r = 0; r < SIZE; r++) {
             for (let c = 0; c < SIZE; c++) {
@@ -460,6 +457,7 @@ function checkTurn() {
         renderBoard(); 
     } else {
         renderBoard(); 
+        // انتخاب موتور
         if (aiColor === WHITE) { askOracle(); } else { askAlphaBeta(); }
     }
 }
