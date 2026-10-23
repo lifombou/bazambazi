@@ -60,6 +60,7 @@
     grid-template-rows:repeat(4,70px);gap:8px;direction:ltr;
     position:relative; z-index: 1;
   }
+  
   /* لایه SVG برای کشیدن خطوط روی جدول */
   #pathOverlay {
     position: absolute;
@@ -957,7 +958,6 @@ function drawPath(path) {
 
   pathOverlay.style.display = 'block';
   
-  // محاسبه ابعاد یک خانه + فاصله (70px + 8px gap)
   const cellSize = 70;
   const gap = 8;
   const step = cellSize + gap;
@@ -967,14 +967,16 @@ function drawPath(path) {
   for (let i = 0; i < path.length; i++) {
     const idx = path[i];
     const r = Math.floor(idx / SIZE);
-    const c = idx % SIZE; // چون گرید از چپ به راست است
-    // مختصات مرکز خانه
-    const x = c * step + offset;
+    
+    // ⭐️ اصلاح باگ: چون جدول از راست به چپ پر میشه، مختصات افقی باید معکوس بشه
+    const c = idx % SIZE; 
+    const visualC = SIZE - 1 - c; 
+    
+    const x = visualC * step + offset;
     const y = r * step + offset;
     points.push({x, y});
   }
 
-  // کشیدن خطوط
   for (let i = 0; i < points.length - 1; i++) {
     const p1 = points[i];
     const p2 = points[i+1];
@@ -989,17 +991,14 @@ function drawPath(path) {
     pathOverlay.appendChild(line);
   }
 
-  // کشیدن فلش در انتهای مسیر
   if (points.length > 1) {
     const pLast = points[points.length - 1];
     const pPrev = points[points.length - 2];
     const angle = Math.atan2(pLast.y - pPrev.y, pLast.x - pPrev.x);
     
-    // رسم یک مثلث برای سر فلش
     const arrowSize = 12;
     const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
     
-    // مختصات راس مثلث
     const tipX = pLast.x;
     const tipY = pLast.y;
     const leftX = tipX - arrowSize * Math.cos(angle - Math.PI / 6);
@@ -1019,7 +1018,7 @@ function clearPath() {
 }
 
 function onCellClick(e) {
-  clearPath(); // پاک کردن مسیر با کلیک جدید
+  clearPath(); 
   const idx = parseInt(e.currentTarget.dataset.idx, 10);
   cellEls.forEach(c => c.classList.remove('active'));
   cellEls[idx].classList.add('active');
@@ -1164,7 +1163,6 @@ function renderResults(results, flatGrid) {
   results.forEach(function (pair, i) {
     const w = pair[0], s = pair[1];
     const tr = document.createElement('tr');
-    // هنگام کلیک روی ردیف، مسیر پیدا و رسم میشه
     tr.onclick = () => {
       const path = findPathForWord(w, flatGrid);
       if(path) {
@@ -1196,6 +1194,19 @@ window.KalameDebug = {
     return { inTrie: node.isWord, normalized: w };
   }
 };
+
+/* =========================================================
+   🛡️ سیستم ضد دستکاری (Anti-Tamper)
+   ========================================================= */
+setInterval(() => {
+    const isUnlocked = !document.body.classList.contains('locked');
+    const hasSession = localStorage.getItem('kalame_session_v2');
+
+    if (isUnlocked && !hasSession) {
+        console.log("⚠️ Bypass detected. Reloading...");
+        location.reload();
+    }
+}, 2000);
 
 })();
 </script>
