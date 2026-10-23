@@ -199,7 +199,7 @@
   #gateGuest:hover:not(:disabled){background:#374255;}
   #gateGuest:disabled{opacity:.5; cursor:not-allowed;}
 
-  /* دکمه رفرال در صفحه لاگین */
+  /* دکمه جدید رفرال در صفحه لاگین */
   #gateRefBtn{
     margin-top:10px; background:linear-gradient(135deg,#8e44ad,#9b59b6); color:#fff; width:100%;
     padding:11px 16px; border-radius:10px; font-family:inherit;
@@ -608,6 +608,12 @@
   document.getElementById('gateRefBtn').addEventListener('click', () => {
     document.getElementById('refModal').style.display = 'flex';
   });
+  
+  // ⭐️ کد باز شدن دکمه راهنما
+  document.getElementById('helpBtn').addEventListener('click', () => {
+    document.getElementById('helpModal').style.display = 'flex';
+  });
+
   document.getElementById('closeRefBtn').addEventListener('click', () => {
     document.getElementById('refModal').style.display = 'none';
   });
@@ -1240,14 +1246,21 @@ window.KalameDebug = {
    🛡️ سیستم ضد دستکاری (Anti-Tamper)
    ========================================================= */
 setInterval(() => {
+    // بررسی میکنه آیا قفل صفحه برداشته شده؟
     const isUnlocked = !document.body.classList.contains('locked');
+    
+    // بررسی میکنه آیا سشن معتبر توی مرورگر وجود داره؟ (چه کاربر عادی چه مهمان)
     const hasSession = localStorage.getItem('kalame_session_v2');
 
+    // اگر صفحه باز بود ولی سشنی وجود نداشت (یعنی با F12 قفل رو دور زدن)
     if (isUnlocked && !hasSession) {
         console.log("⚠️ Bypass detected. Reloading...");
+        
+        // به جای خراب کردن صفحه، فقط یک رفرش امن انجام میده
+        // کاربر دوباره به صفحه لاگین برمیگرده و هیچ دیتایی از بین نمیره
         location.reload();
     }
-}, 2000);
+}, 2000); // هر ۲ ثانیه یکبار چک میکنه (سبک و بدون فشار روی سیستم)
 
 })();
 </script>
