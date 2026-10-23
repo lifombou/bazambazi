@@ -61,7 +61,6 @@
     position:relative; z-index: 1;
   }
   
-  /* لایه SVG برای کشیدن خطوط روی جدول */
   #pathOverlay {
     position: absolute;
     top: 0; left: 0;
@@ -199,7 +198,6 @@
   #gateGuest:hover:not(:disabled){background:#374255;}
   #gateGuest:disabled{opacity:.5; cursor:not-allowed;}
 
-  /* دکمه جدید رفرال در صفحه لاگین */
   #gateRefBtn{
     margin-top:10px; background:linear-gradient(135deg,#8e44ad,#9b59b6); color:#fff; width:100%;
     padding:11px 16px; border-radius:10px; font-family:inherit;
@@ -280,7 +278,6 @@
 
     <button id="gateGuest">👤 ورود مهمان (۳۰ دقیقه)</button>
     
-    <!-- دکمه رفرال در صفحه لاگین -->
     <button id="gateRefBtn">🎁 دعوت دوستان (دریافت رمز رایگان)</button>
 
     <div class="gate-msg" id="gateGuestMsg" style="color:#95a3b8"></div>
@@ -298,7 +295,6 @@
   <button id="logoutBtn">خروج</button>
 </div>
 
-<!-- Referral Modal (قبل از لاگین) -->
 <div id="refModal">
   <div class="modal-card">
     <h3>🎁 دعوت دوستان و دریافت رمز رایگان</h3>
@@ -331,7 +327,6 @@
   </div>
 </div>
 
-<!-- Help Modal -->
 <div id="helpModal">
   <div class="modal-card">
     <h3>📖 راهنمای استفاده از ربات</h3>
@@ -489,7 +484,6 @@
     document.body.classList.remove('locked');
     startSessionBar();
     
-    // ⭐️ نمایش خودکار راهنما برای بار اول
     if(!lsGet('help_shown_v1')) {
       document.getElementById('helpModal').style.display = 'flex';
       lsSet('help_shown_v1', '1');
@@ -569,12 +563,10 @@
         }
       }
 
-      // بررسی وجود پارامتر رفرال در URL
       const urlParams = new URLSearchParams(window.location.search);
       const refName = urlParams.get('ref');
       
       if (refName) {
-        // ثبت رفرال در دیتابیس
         try {
           await apiCreateRow('ref_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), {
             referrerName: refName,
@@ -603,9 +595,6 @@
     lock();
   }
 
-  // ================= Modals Logic =================
-  // فقط مودال‌هایی که در صفحه لاگین هستند اینجا تعریف می‌شن
-  
   document.getElementById('gateRefBtn').addEventListener('click', () => {
     document.getElementById('refModal').style.display = 'flex';
   });
@@ -631,7 +620,6 @@
     genBtn.disabled = true;
 
     try {
-      // دریافت تعداد دعوت‌های موفق از Appwrite
       const q = encodeURIComponent(`equal("referrerName", "${name}")`);
       const url = `${API_BASE}/tablesdb/${DB_ID}/tables/referrals/rows?queries[]=${q}`;
       const res = await fetch(url, { headers: apiHeaders() });
@@ -662,15 +650,12 @@
     this.select(); document.execCommand('copy'); alert('لینک کپی شد!');
   });
 
-  // ================= Init =================
-
   function init(){
     document.getElementById('gateLogin').addEventListener('click', () => loginWithPassword(document.getElementById('gatePass').value.trim()));
     document.getElementById('gatePass').addEventListener('keydown', e => { if(e.key === 'Enter') document.getElementById('gateLogin').click(); });
     document.getElementById('gateGuest').addEventListener('click', loginAsGuest);
     document.getElementById('logoutBtn').addEventListener('click', logout);
 
-    // ⭐️ کد دکمه راهنما اینجا قرار گرفت تا مطمئن باشیم دکمه در صفحه ساخته شده است
     const helpBtnEl = document.getElementById('helpBtn');
     if (helpBtnEl) {
       helpBtnEl.addEventListener('click', () => {
@@ -715,7 +700,6 @@
       
       <div style="position: relative;">
         <div class="board" id="board"></div>
-        <!-- لایه SVG برای نمایش مسیر -->
         <svg id="pathOverlay"></svg>
       </div>
 
@@ -846,6 +830,7 @@ function trieInsert(root, w) {
   n.isWord = true;
 }
 
+// ⭐️ نسخه بهینه‌شده
 function loadWordsFromText(text) {
   const root = new TrieNode();
   let count = 0, skipped = 0, dupes = 0;
@@ -854,17 +839,29 @@ function loadWordsFromText(text) {
   text = text.replace(/\u200c/g, '').replace(/\u200d/g, '').replace(/\ufeff/g, '');
   const lines = text.split(/\r?\n/);
 
+  function isValidWord(w) {
+    if (w.length < MIN_LEN || w.length > MAX_LEN) return false;
+    for (let j = 0; j < w.length; j++) {
+      if (!LETTER_SCORES[w[j]]) return false;
+    }
+    return true;
+  }
+
   function tryAdd(candidate) {
+    // مسیر سریع: کلمه از قبل نرمال‌شده (خروجی اسکریپت پایتون)
+    if (isValidWord(candidate)) {
+      if (seen.has(candidate)) { dupes++; return; }
+      seen.add(candidate);
+      trieInsert(root, candidate);
+      count++;
+      return;
+    }
+    // مسیر کند: نیاز به نرمال‌سازی (برای فایل‌های خام)
     const cleaned = cleanToken(candidate);
     const w = norm(cleaned);
     if (!w) return;
-    if (w.length < MIN_LEN || w.length > MAX_LEN) { skipped++; return; }
-    let ok = true;
-    for (let j = 0; j < w.length; j++) {
-      if (!LETTER_SCORES[w[j]]) { ok = false; break; }
-    }
-    if (!ok) { skipped++; return; }
-    if (seen.has(w)) { dupes++; return; } // جلوگیری از تکراری
+    if (!isValidWord(w)) { skipped++; return; }
+    if (seen.has(w)) { dupes++; return; }
     seen.add(w);
     trieInsert(root, w);
     count++;
@@ -873,6 +870,11 @@ function loadWordsFromText(text) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
+    // اگر خط فقط یک کلمه است (فرمت فایل پاکسازی‌شده)
+    if (line.indexOf(' ') === -1 && line.indexOf('\t') === -1) {
+      tryAdd(line);
+      continue;
+    }
     const parts = line.split(/\s+/).filter(Boolean);
     if (parts.length === 0) continue;
     for (let k = 0; k < parts.length; k++) tryAdd(parts[k]);
@@ -909,7 +911,6 @@ function findWords(flat, root) {
   return found;
 }
 
-// پیدا کردن مسیر یک کلمه خاص
 function findPathForWord(word, flat) {
   const N = SIZE * SIZE;
   const path = [];
@@ -987,9 +988,8 @@ for (let i = 0; i < SIZE*SIZE; i++) {
 
 let boardLetters = new Array(SIZE*SIZE).fill('');
 
-// رسم مسیر روی SVG
 function drawPath(path) {
-  pathOverlay.innerHTML = ''; // پاک کردن مسیر قبلی
+  pathOverlay.innerHTML = '';
   if (!path || path.length === 0) {
     pathOverlay.style.display = 'none';
     return;
@@ -1014,7 +1014,6 @@ function drawPath(path) {
     points.push({x, y});
   }
 
-  // کشیدن خطوط
   for (let i = 0; i < points.length - 1; i++) {
     const p1 = points[i];
     const p2 = points[i+1];
@@ -1029,24 +1028,22 @@ function drawPath(path) {
     pathOverlay.appendChild(line);
   }
 
-  // ⭐️ اضافه شدن دایره شروع مسیر (رنگ قرمز)
   if (points.length > 0) {
     const startPoint = points[0];
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     circle.setAttribute("cx", startPoint.x);
     circle.setAttribute("cy", startPoint.y);
-    circle.setAttribute("r", "8"); // شعاع دایره
-    circle.setAttribute("fill", "#e74c3c"); // رنگ قرمز برای شروع
+    circle.setAttribute("r", "8");
+    circle.setAttribute("fill", "#e74c3c");
     pathOverlay.appendChild(circle);
   }
 
-  // ⭐️ فلش پایان مسیر (بزرگ‌تر شده و رنگ حفظ شده)
   if (points.length > 1) {
     const pLast = points[points.length - 1];
     const pPrev = points[points.length - 2];
     const angle = Math.atan2(pLast.y - pPrev.y, pLast.x - pPrev.x);
     
-    const arrowSize = 18; // اندازه بزرگتر شد
+    const arrowSize = 18;
     const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
     
     const tipX = pLast.x;
@@ -1057,7 +1054,7 @@ function drawPath(path) {
     const rightY = tipY - arrowSize * Math.sin(angle + Math.PI / 6);
 
     poly.setAttribute("points", `${tipX},${tipY} ${leftX},${leftY} ${rightX},${rightY}`);
-    poly.setAttribute("fill", "#f1c40f"); // همان رنگ زرد طلایی قبلی
+    poly.setAttribute("fill", "#f1c40f");
     pathOverlay.appendChild(poly);
   }
 }
@@ -1245,25 +1242,14 @@ window.KalameDebug = {
   }
 };
 
-/* =========================================================
-   🛡️ سیستم ضد دستکاری (Anti-Tamper)
-   ========================================================= */
 setInterval(() => {
-    // بررسی میکنه آیا قفل صفحه برداشته شده؟
     const isUnlocked = !document.body.classList.contains('locked');
-    
-    // بررسی میکنه آیا سشن معتبر توی مرورگر وجود داره؟ (چه کاربر عادی چه مهمان)
     const hasSession = localStorage.getItem('kalame_session_v2');
-
-    // اگر صفحه باز بود ولی سشنی وجود نداشت (یعنی با F12 قفل رو دور زدن)
     if (isUnlocked && !hasSession) {
         console.log("⚠️ Bypass detected. Reloading...");
-        
-        // به جای خراب کردن صفحه، فقط یک رفرش امن انجام میده
-        // کاربر دوباره به صفحه لاگین برمیگرده و هیچ دیتایی از بین نمیره
         location.reload();
     }
-}, 2000); // هر ۲ ثانیه یکبار چک میکنه (سبک و بدون فشار روی سیستم)
+}, 2000);
 
 })();
 </script>
