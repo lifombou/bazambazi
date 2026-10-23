@@ -604,16 +604,11 @@
   }
 
   // ================= Modals Logic =================
+  // فقط مودال‌هایی که در صفحه لاگین هستند اینجا تعریف می‌شن
   
   document.getElementById('gateRefBtn').addEventListener('click', () => {
     document.getElementById('refModal').style.display = 'flex';
   });
-  
-  // ⭐️ کد باز شدن دکمه راهنما
-  document.getElementById('helpBtn').addEventListener('click', () => {
-    document.getElementById('helpModal').style.display = 'flex';
-  });
-
   document.getElementById('closeRefBtn').addEventListener('click', () => {
     document.getElementById('refModal').style.display = 'none';
   });
@@ -674,6 +669,14 @@
     document.getElementById('gatePass').addEventListener('keydown', e => { if(e.key === 'Enter') document.getElementById('gateLogin').click(); });
     document.getElementById('gateGuest').addEventListener('click', loginAsGuest);
     document.getElementById('logoutBtn').addEventListener('click', logout);
+
+    // ⭐️ کد دکمه راهنما اینجا قرار گرفت تا مطمئن باشیم دکمه در صفحه ساخته شده است
+    const helpBtnEl = document.getElementById('helpBtn');
+    if (helpBtnEl) {
+      helpBtnEl.addEventListener('click', () => {
+        document.getElementById('helpModal').style.display = 'flex';
+      });
+    }
 
     const s = loadSession();
     if(s && !isExpired(s)) unlock();
